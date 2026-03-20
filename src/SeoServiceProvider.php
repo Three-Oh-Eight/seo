@@ -2,6 +2,7 @@
 
 namespace ThreeOhEight\Seo;
 
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\ServiceProvider;
 
 class SeoServiceProvider extends ServiceProvider
@@ -24,5 +25,9 @@ class SeoServiceProvider extends ServiceProvider
         ], 'seo-config');
 
         $this->loadViewsFrom(__DIR__.'/../resources/views', 'seo');
+
+        Blade::directive('seo', function () {
+            return "<?php echo app(\ThreeOhEight\Seo\Seo::class)->render(); ?>";
+        });
     }
 }

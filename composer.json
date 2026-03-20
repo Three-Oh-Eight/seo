@@ -13,6 +13,16 @@
             "ThreeOhEight\\Seo\\": "src/"
         }
     },
+    "autoload-dev": {
+        "psr-4": {
+            "ThreeOhEight\\Seo\\Tests\\": "tests/"
+        }
+    },
+    "require-dev": {
+        "orchestra/testbench": "^10.0",
+        "pestphp/pest": "^4.0",
+        "pestphp/pest-plugin-laravel": "^4.0"
+    },
     "extra": {
         "laravel": {
             "providers": [
@@ -24,5 +34,10 @@
         }
     },
     "minimum-stability": "stable",
-    "prefer-stable": true
+    "prefer-stable": true,
+    "config": {
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    }
 }

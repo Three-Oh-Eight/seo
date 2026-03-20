@@ -6,7 +6,6 @@ readonly class SeoDefaults
 {
     public function __construct(
         public string $siteName,
-        public string $suffix,
         public string $separator,
         public ?string $title,
         public ?string $description,
@@ -26,7 +25,6 @@ readonly class SeoDefaults
     {
         return new self(
             siteName: $config['site_name'] ?? config('app.name', ''),
-            suffix: $config['suffix'] ?? '',
             separator: $config['separator'] ?? ' - ',
             title: $config['title'] ?? null,
             description: $config['description'] ?? null,

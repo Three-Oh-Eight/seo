@@ -2,7 +2,6 @@
 
 return [
     'site_name' => env('APP_NAME', 'PayFlo'),
-    'suffix' => ' - PayFlo',
     'separator' => ' - ',
     'title' => null,
     'description' => 'EU VAT compliance made simple. Automated tax calculation, OSS reporting, and cross-border compliance for digital businesses.',

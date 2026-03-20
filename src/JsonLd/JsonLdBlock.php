@@ -12,6 +12,11 @@ class JsonLdBlock
         $this->data['@type'] = $type;
     }
 
+    public static function make(string $type): self
+    {
+        return new self($type);
+    }
+
     public function title(string $title): self
     {
         $this->data['name'] = $title;
@@ -38,6 +43,16 @@ class JsonLdBlock
      */
     public function toArray(): array
     {
-        return $this->data;
+        return array_map(function (mixed $value) {
+            if ($value instanceof self) {
+                return $value->toArray();
+            }
+
+            if (is_array($value)) {
+                return array_map(fn (mixed $item) => $item instanceof self ? $item->toArray() : $item, $value);
+            }
+
+            return $value;
+        }, $this->data);
     }
 }

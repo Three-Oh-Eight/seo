@@ -2,10 +2,17 @@
 
 namespace ThreeOhEight\Seo;
 
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Traits\Macroable;
+use ThreeOhEight\Seo\Contracts\Seoable;
 use ThreeOhEight\Seo\JsonLd\JsonLdBlock;
 
 class Seo
 {
+    use Macroable {
+        __call as macroCall;
+    }
+
     public function __construct(
         private SeoData $data,
         private readonly SeoDefaults $defaults,
@@ -53,6 +60,47 @@ class Seo
         return $this;
     }
 
+    public function meta(string $name, string $content): self
+    {
+        $this->data->meta[$name] = $content;
+
+        return $this;
+    }
+
+    public function prev(string $url): self
+    {
+        $this->data->prev = $url;
+
+        return $this;
+    }
+
+    public function next(string $url): self
+    {
+        $this->data->next = $url;
+
+        return $this;
+    }
+
+    public function paginate(LengthAwarePaginator $paginator): self
+    {
+        if ($paginator->currentPage() > 1) {
+            $this->prev($paginator->previousPageUrl());
+        }
+
+        if ($paginator->hasMorePages()) {
+            $this->next($paginator->nextPageUrl());
+        }
+
+        return $this;
+    }
+
+    public function from(Seoable $model): self
+    {
+        $model->toSeo($this);
+
+        return $this;
+    }
+
     public function og(): OpenGraphProxy
     {
         return new OpenGraphProxy($this->data, $this);
@@ -71,6 +119,33 @@ class Seo
         return $block;
     }
 
+    /**
+     * @param  array<string, ?string>  $items  ['Label' => '/url'] — null url for current page
+     */
+    public function breadcrumbs(array $items): self
+    {
+        $list = JsonLdBlock::make('BreadcrumbList');
+        $elements = [];
+        $position = 1;
+
+        foreach ($items as $label => $url) {
+            $item = JsonLdBlock::make('ListItem')
+                ->value('position', $position++)
+                ->value('name', $label);
+
+            if ($url !== null) {
+                $item->value('item', $url);
+            }
+
+            $elements[] = $item;
+        }
+
+        $list->value('itemListElement', $elements);
+        $this->data->jsonLd->add($list);
+
+        return $this;
+    }
+
     public function render(): SeoOutput
     {
         $parts = array_filter([
@@ -87,12 +162,7 @@ class Seo
     {
         $lines = [];
 
-        $title = $this->data->title ?? $this->defaults->title;
-        if ($title) {
-            $lines[] = '<title>'.$title.$this->defaults->separator.$this->defaults->siteName.'</title>';
-        } else {
-            $lines[] = '<title>'.$this->defaults->siteName.'</title>';
-        }
+        $lines[] = '<title>'.e($this->formatTitle($this->data->title ?? $this->defaults->title)).'</title>';
 
         $description = $this->data->description ?? $this->defaults->description;
         if ($description) {
@@ -109,6 +179,18 @@ class Seo
             $lines[] = '<meta name="robots" content="'.e($robots).'">';
         }
 
+        if ($this->data->prev) {
+            $lines[] = '<link rel="prev" href="'.e($this->data->prev).'">';
+        }
+
+        if ($this->data->next) {
+            $lines[] = '<link rel="next" href="'.e($this->data->next).'">';
+        }
+
+        foreach ($this->data->meta as $name => $content) {
+            $lines[] = '<meta name="'.e($name).'" content="'.e($content).'">';
+        }
+
         return new SeoOutput(implode("\n", $lines));
     }
 
@@ -120,8 +202,7 @@ class Seo
         $lines[] = '<meta property="og:site_name" content="'.e($this->defaults->siteName).'">';
 
         $ogTitle = $this->data->ogTitle
-            ?? ($this->data->title ? $this->data->title.$this->defaults->suffix : null)
-            ?? $this->defaults->siteName;
+            ?? $this->formatTitle($this->data->title);
         $lines[] = '<meta property="og:title" content="'.e($ogTitle).'">';
 
         $ogDescription = $this->data->ogDescription
@@ -151,8 +232,7 @@ class Seo
         $lines[] = '<meta name="twitter:card" content="'.e($this->defaults->twitterCard).'">';
 
         $twitterTitle = $this->data->twitterTitle
-            ?? ($this->data->title ? $this->data->title.$this->defaults->suffix : null)
-            ?? $this->defaults->siteName;
+            ?? $this->formatTitle($this->data->title);
         $lines[] = '<meta name="twitter:title" content="'.e($twitterTitle).'">';
 
         $twitterDescription = $this->data->twitterDescription
@@ -181,6 +261,15 @@ class Seo
         }
 
         return new SeoOutput($this->data->jsonLd->render());
+    }
+
+    private function formatTitle(?string $pageTitle): string
+    {
+        if ($pageTitle) {
+            return $pageTitle.$this->defaults->separator.$this->defaults->siteName;
+        }
+
+        return $this->defaults->siteName;
     }
 
     private function resolveCanonical(): ?string

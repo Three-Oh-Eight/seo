@@ -24,6 +24,13 @@ class SeoData
 
     public ?string $twitterDescription = null;
 
+    /** @var array<string, string> */
+    public array $meta = [];
+
+    public ?string $prev = null;
+
+    public ?string $next = null;
+
     public JsonLdCollection $jsonLd;
 
     public function __construct()
