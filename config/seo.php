@@ -12,4 +12,6 @@ return [
     'twitter_card' => 'summary_large_image',
     'twitter_image' => '/android-chrome-512x512.png',
     'twitter_site' => null,
+
+    'canonical_strip' => [],
 ];

@@ -81,3 +81,63 @@ it('renders valid JSON', function () {
     expect($decoded)->not->toBeNull()
         ->and($decoded['name'])->toBe('Acme & Co');
 });
+
+// --- Separate blocks ---
+
+it('is not empty after adding a separate block', function () {
+    $collection = new JsonLdCollection;
+    $collection->addSeparate(JsonLdBlock::make('QAPage'));
+
+    expect($collection->isEmpty())->toBeFalse();
+});
+
+it('renders separate block as individual script tag', function () {
+    $collection = new JsonLdCollection;
+    $collection->addSeparate(JsonLdBlock::make('QAPage')->value('mainEntity', 'test'));
+
+    $html = $collection->render();
+
+    expect($html)->toContain('<script type="application/ld+json">')
+        ->and($html)->toContain('"@type":"QAPage"')
+        ->and($html)->toContain('"@context":"https://schema.org"');
+});
+
+it('renders multiple separate blocks as individual script tags', function () {
+    $collection = new JsonLdCollection;
+    $collection->addSeparate(JsonLdBlock::make('QAPage')->title('Q1'));
+    $collection->addSeparate(JsonLdBlock::make('QAPage')->title('Q2'));
+
+    $html = $collection->render();
+    $scriptCount = substr_count($html, '<script type="application/ld+json">');
+
+    expect($scriptCount)->toBe(2)
+        ->and($html)->toContain('"name":"Q1"')
+        ->and($html)->toContain('"name":"Q2"')
+        ->and($html)->not->toContain('@graph');
+});
+
+it('renders regular and separate blocks together', function () {
+    $collection = new JsonLdCollection;
+    $collection->add(JsonLdBlock::make('Organization')->title('Acme'));
+    $collection->addSeparate(JsonLdBlock::make('QAPage')->title('Q1'));
+    $collection->addSeparate(JsonLdBlock::make('QAPage')->title('Q2'));
+
+    $html = $collection->render();
+    $scriptCount = substr_count($html, '<script type="application/ld+json">');
+
+    // 1 for the Organization + 2 separate for QAPages
+    expect($scriptCount)->toBe(3);
+});
+
+it('renders regular blocks as graph alongside separate blocks', function () {
+    $collection = new JsonLdCollection;
+    $collection->add(JsonLdBlock::make('Organization')->title('Acme'));
+    $collection->add(JsonLdBlock::make('WebSite')->title('Site'));
+    $collection->addSeparate(JsonLdBlock::make('QAPage')->title('Q1'));
+
+    $html = $collection->render();
+
+    // Regular blocks in @graph, separate as individual
+    expect($html)->toContain('"@graph"')
+        ->and(substr_count($html, '<script type="application/ld+json">'))->toBe(2);
+});

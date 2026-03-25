@@ -24,12 +24,33 @@ class SeoData
 
     public ?string $twitterDescription = null;
 
+    // Image dimensions (Feature 3)
+    public ?int $imageWidth = null;
+
+    public ?int $imageHeight = null;
+
+    public ?string $imageType = null;
+
+    public ?string $imageAlt = null;
+
     /** @var array<string, string> */
     public array $meta = [];
 
     public ?string $prev = null;
 
     public ?string $next = null;
+
+    /** @var array<string, string> hreflang => url */
+    public array $alternates = [];
+
+    /** @var list<string> */
+    public array $canonicalStripExtra = [];
+
+    /** @var list<array{url: string, crossorigin: bool}> */
+    public array $preconnects = [];
+
+    /** @var list<string> */
+    public array $dnsPrefetches = [];
 
     public JsonLdCollection $jsonLd;
 

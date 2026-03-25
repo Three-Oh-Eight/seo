@@ -16,6 +16,8 @@ readonly class SeoDefaults
         public string $twitterCard,
         public ?string $twitterImage,
         public ?string $twitterSite,
+        /** @var list<string> */
+        public array $canonicalStrip = [],
     ) {}
 
     /**
@@ -35,6 +37,7 @@ readonly class SeoDefaults
             twitterCard: $config['twitter_card'] ?? 'summary_large_image',
             twitterImage: $config['twitter_image'] ?? null,
             twitterSite: $config['twitter_site'] ?? null,
+            canonicalStrip: $config['canonical_strip'] ?? [],
         );
     }
 }

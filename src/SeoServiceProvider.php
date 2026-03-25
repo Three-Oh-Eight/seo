@@ -29,5 +29,7 @@ class SeoServiceProvider extends ServiceProvider
         Blade::directive('seo', function () {
             return "<?php echo app(\ThreeOhEight\Seo\Seo::class)->render(); ?>";
         });
+
+        $this->app['router']->aliasMiddleware('seo', \ThreeOhEight\Seo\Middleware\SeoMiddleware::class);
     }
 }

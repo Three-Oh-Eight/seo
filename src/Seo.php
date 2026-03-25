@@ -6,6 +6,7 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Traits\Macroable;
 use ThreeOhEight\Seo\Contracts\Seoable;
 use ThreeOhEight\Seo\JsonLd\JsonLdBlock;
+use ThreeOhEight\Seo\JsonLd\JsonLdHelper;
 
 class Seo
 {
@@ -53,9 +54,18 @@ class Seo
         return $this;
     }
 
-    public function image(string $url): self
-    {
+    public function image(
+        string $url,
+        ?int $width = null,
+        ?int $height = null,
+        ?string $type = null,
+        ?string $alt = null,
+    ): self {
         $this->data->image = $url;
+        $this->data->imageWidth = $width;
+        $this->data->imageHeight = $height;
+        $this->data->imageType = $type;
+        $this->data->imageAlt = $alt;
 
         return $this;
     }
@@ -101,6 +111,47 @@ class Seo
         return $this;
     }
 
+    public function alternate(string $hreflang, string $url): self
+    {
+        $this->data->alternates[$hreflang] = $url;
+
+        return $this;
+    }
+
+    /**
+     * @param  array<string, string>  $alternates  ['hreflang' => 'url']
+     */
+    public function alternates(array $alternates): self
+    {
+        $this->data->alternates = array_merge($this->data->alternates, $alternates);
+
+        return $this;
+    }
+
+    /**
+     * @param  list<string>  $params  Query param names/patterns to strip from auto-canonical
+     */
+    public function canonicalWithout(array $params): self
+    {
+        $this->data->canonicalStripExtra = array_merge($this->data->canonicalStripExtra, $params);
+
+        return $this;
+    }
+
+    public function preconnect(string $url, bool $crossorigin = false): self
+    {
+        $this->data->preconnects[] = ['url' => $url, 'crossorigin' => $crossorigin];
+
+        return $this;
+    }
+
+    public function dnsPrefetch(string $url): self
+    {
+        $this->data->dnsPrefetches[] = $url;
+
+        return $this;
+    }
+
     public function og(): OpenGraphProxy
     {
         return new OpenGraphProxy($this->data, $this);
@@ -111,10 +162,22 @@ class Seo
         return new TwitterProxy($this->data, $this);
     }
 
-    public function jsonLd(string $type): JsonLdBlock
+    public function jsonLd(?string $type = null): JsonLdBlock|JsonLdHelper
     {
+        if ($type === null) {
+            return new JsonLdHelper($this->data->jsonLd, $this);
+        }
+
         $block = new JsonLdBlock($type);
         $this->data->jsonLd->add($block);
+
+        return $block;
+    }
+
+    public function jsonLdSeparate(string $type): JsonLdBlock
+    {
+        $block = new JsonLdBlock($type);
+        $this->data->jsonLd->addSeparate($block);
 
         return $block;
     }
@@ -191,6 +254,22 @@ class Seo
             $lines[] = '<meta name="'.e($name).'" content="'.e($content).'">';
         }
 
+        foreach ($this->data->alternates as $hreflang => $url) {
+            $lines[] = '<link rel="alternate" hreflang="'.e($hreflang).'" href="'.e($url).'">';
+        }
+
+        foreach ($this->data->preconnects as $preconnect) {
+            $tag = '<link rel="preconnect" href="'.e($preconnect['url']).'"';
+            if ($preconnect['crossorigin']) {
+                $tag .= ' crossorigin';
+            }
+            $lines[] = $tag.'>';
+        }
+
+        foreach ($this->data->dnsPrefetches as $url) {
+            $lines[] = '<link rel="dns-prefetch" href="'.e($url).'">';
+        }
+
         return new SeoOutput(implode("\n", $lines));
     }
 
@@ -220,6 +299,22 @@ class Seo
         $image = $this->data->image ?? $this->defaults->ogImage;
         if ($image) {
             $lines[] = '<meta property="og:image" content="'.e($image).'">';
+
+            if ($this->data->imageWidth !== null) {
+                $lines[] = '<meta property="og:image:width" content="'.$this->data->imageWidth.'">';
+            }
+
+            if ($this->data->imageHeight !== null) {
+                $lines[] = '<meta property="og:image:height" content="'.$this->data->imageHeight.'">';
+            }
+
+            if ($this->data->imageType !== null) {
+                $lines[] = '<meta property="og:image:type" content="'.e($this->data->imageType).'">';
+            }
+
+            if ($this->data->imageAlt !== null) {
+                $lines[] = '<meta property="og:image:alt" content="'.e($this->data->imageAlt).'">';
+            }
         }
 
         return new SeoOutput(implode("\n", $lines));
@@ -279,9 +374,41 @@ class Seo
         }
 
         if ($this->defaults->autoCanonical) {
+            $patterns = array_merge($this->defaults->canonicalStrip, $this->data->canonicalStripExtra);
+
+            if (! empty($patterns)) {
+                return $this->stripCanonicalParams(request()->fullUrl());
+            }
+
             return url()->current();
         }
 
         return null;
+    }
+
+    private function stripCanonicalParams(string $url): string
+    {
+        $parsed = parse_url($url);
+
+        if (! isset($parsed['query'])) {
+            return $url;
+        }
+
+        $patterns = array_merge($this->defaults->canonicalStrip, $this->data->canonicalStripExtra);
+
+        parse_str($parsed['query'], $params);
+
+        foreach (array_keys($params) as $key) {
+            foreach ($patterns as $pattern) {
+                if (fnmatch($pattern, $key)) {
+                    unset($params[$key]);
+                    break;
+                }
+            }
+        }
+
+        $base = strtok($url, '?');
+
+        return empty($params) ? $base : $base.'?'.http_build_query($params);
     }
 }
