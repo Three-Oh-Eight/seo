@@ -21,51 +21,51 @@ it('still returns JsonLdBlock when jsonLd called with type', function () {
 
 it('renders SoftwareApplication schema', function () {
     $seo = $this->makeSeo();
-    $seo->jsonLd()->softwareApplication('PayFlo', version: '2.0', url: 'https://payflo.eu', applicationCategory: 'BusinessApplication');
+    $seo->jsonLd()->softwareApplication('Acme', version: '2.0', url: 'https://acme.test', applicationCategory: 'BusinessApplication');
 
     $html = $seo->renderJsonLd()->toHtml();
     $json = str_replace(['<script type="application/ld+json">', '</script>'], '', $html);
     $data = json_decode($json, true);
 
     expect($data['@type'])->toBe('SoftwareApplication')
-        ->and($data['name'])->toBe('PayFlo')
+        ->and($data['name'])->toBe('Acme')
         ->and($data['version'])->toBe('2.0')
-        ->and($data['url'])->toBe('https://payflo.eu')
+        ->and($data['url'])->toBe('https://acme.test')
         ->and($data['applicationCategory'])->toBe('BusinessApplication');
 });
 
 it('renders SoftwareApplication with only name', function () {
     $seo = $this->makeSeo();
-    $seo->jsonLd()->softwareApplication('PayFlo');
+    $seo->jsonLd()->softwareApplication('Acme');
 
     $html = $seo->renderJsonLd()->toHtml();
     $json = str_replace(['<script type="application/ld+json">', '</script>'], '', $html);
     $data = json_decode($json, true);
 
     expect($data['@type'])->toBe('SoftwareApplication')
-        ->and($data['name'])->toBe('PayFlo')
+        ->and($data['name'])->toBe('Acme')
         ->and($data)->not->toHaveKey('version')
         ->and($data)->not->toHaveKey('url');
 });
 
 it('renders WebApplication schema', function () {
     $seo = $this->makeSeo();
-    $seo->jsonLd()->webApplication('ChaosDesk', url: 'https://chaosdesk.eu', browserRequirements: 'Requires JavaScript');
+    $seo->jsonLd()->webApplication('Acme Desk', url: 'https://acme-desk.test', browserRequirements: 'Requires JavaScript');
 
     $html = $seo->renderJsonLd()->toHtml();
     $json = str_replace(['<script type="application/ld+json">', '</script>'], '', $html);
     $data = json_decode($json, true);
 
     expect($data['@type'])->toBe('WebApplication')
-        ->and($data['name'])->toBe('ChaosDesk')
-        ->and($data['url'])->toBe('https://chaosdesk.eu')
+        ->and($data['name'])->toBe('Acme Desk')
+        ->and($data['url'])->toBe('https://acme-desk.test')
         ->and($data['browserRequirements'])->toBe('Requires JavaScript');
 });
 
 it('renders FAQPage schema with questions', function () {
     $seo = $this->makeSeo();
     $seo->jsonLd()->faqPage([
-        ['q' => 'What is PayFlo?', 'a' => 'EU VAT compliance platform.'],
+        ['q' => 'What is Acme?', 'a' => 'A productivity app.'],
         ['q' => 'How much does it cost?', 'a' => 'Starting at 29/month.'],
     ]);
 
@@ -76,9 +76,9 @@ it('renders FAQPage schema with questions', function () {
     expect($data['@type'])->toBe('FAQPage')
         ->and($data['mainEntity'])->toHaveCount(2)
         ->and($data['mainEntity'][0]['@type'])->toBe('Question')
-        ->and($data['mainEntity'][0]['name'])->toBe('What is PayFlo?')
+        ->and($data['mainEntity'][0]['name'])->toBe('What is Acme?')
         ->and($data['mainEntity'][0]['acceptedAnswer']['@type'])->toBe('Answer')
-        ->and($data['mainEntity'][0]['acceptedAnswer']['text'])->toBe('EU VAT compliance platform.');
+        ->and($data['mainEntity'][0]['acceptedAnswer']['text'])->toBe('A productivity app.');
 });
 
 it('renders Organization schema', function () {
@@ -98,22 +98,22 @@ it('renders Organization schema', function () {
 
 it('renders WebSite schema', function () {
     $seo = $this->makeSeo();
-    $seo->jsonLd()->webSite('PayFlo', url: 'https://payflo.eu', description: 'VAT compliance');
+    $seo->jsonLd()->webSite('Acme', url: 'https://acme.test', description: 'Product overview');
 
     $html = $seo->renderJsonLd()->toHtml();
     $json = str_replace(['<script type="application/ld+json">', '</script>'], '', $html);
     $data = json_decode($json, true);
 
     expect($data['@type'])->toBe('WebSite')
-        ->and($data['name'])->toBe('PayFlo')
-        ->and($data['url'])->toBe('https://payflo.eu')
-        ->and($data['description'])->toBe('VAT compliance');
+        ->and($data['name'])->toBe('Acme')
+        ->and($data['url'])->toBe('https://acme.test')
+        ->and($data['description'])->toBe('Product overview');
 });
 
 it('chains helper methods back to Seo', function () {
     $seo = $this->makeSeo();
 
-    $result = $seo->jsonLd()->softwareApplication('PayFlo');
+    $result = $seo->jsonLd()->softwareApplication('Acme');
 
     expect($result)->toBeInstanceOf(Seo::class);
 });
@@ -121,7 +121,7 @@ it('chains helper methods back to Seo', function () {
 it('combines helper and manual jsonLd blocks as graph', function () {
     $seo = $this->makeSeo();
     $seo->jsonLd()->organization('Three Oh Eight');
-    $seo->jsonLd('WebSite')->title('PayFlo');
+    $seo->jsonLd('WebSite')->title('Acme');
 
     $html = $seo->renderJsonLd()->toHtml();
 
@@ -133,8 +133,8 @@ it('combines helper and manual jsonLd blocks as graph', function () {
 it('renders QAPage as separate script tag', function () {
     $seo = $this->makeSeo();
     $seo->jsonLd()->qaPage(
-        question: 'What is VAT?',
-        answer: 'A consumption tax.',
+        question: 'What is Acme?',
+        answer: 'A simple answer.',
     );
 
     $html = $seo->renderJsonLd()->toHtml();
@@ -143,10 +143,10 @@ it('renders QAPage as separate script tag', function () {
 
     expect($data['@type'])->toBe('QAPage')
         ->and($data['mainEntity']['@type'])->toBe('Question')
-        ->and($data['mainEntity']['name'])->toBe('What is VAT?')
+        ->and($data['mainEntity']['name'])->toBe('What is Acme?')
         ->and($data['mainEntity']['answerCount'])->toBe(1)
         ->and($data['mainEntity']['acceptedAnswer']['@type'])->toBe('Answer')
-        ->and($data['mainEntity']['acceptedAnswer']['text'])->toBe('A consumption tax.');
+        ->and($data['mainEntity']['acceptedAnswer']['text'])->toBe('A simple answer.');
 });
 
 it('renders QAPage with full details matching ikformeer pattern', function () {
@@ -157,8 +157,8 @@ it('renders QAPage with full details matching ikformeer pattern', function () {
         ->value('url', 'https://example.com/partij/vvd');
 
     $seo->jsonLd()->qaPage(
-        question: 'Should taxes be lowered?',
-        answer: 'Yes, we believe in lower taxes.',
+        question: 'Is the product any good?',
+        answer: 'Yes, it works well.',
         questionDetail: 'This statement addresses fiscal policy.',
         answerUrl: 'https://example.com/thema/fiscaal#answer-1-vvd',
         dateCreated: '2026-03-20T00:00:00+00:00',
@@ -207,7 +207,7 @@ it('renders QAPages separate from regular blocks', function () {
 it('renders FAQPage with author string', function () {
     $seo = $this->makeSeo();
     $seo->jsonLd()->faqPage([
-        ['q' => 'What is VAT?', 'a' => 'A tax.', 'author' => 'VVD'],
+        ['q' => 'What is Acme?', 'a' => 'A simple answer.', 'author' => 'VVD'],
     ]);
 
     $html = $seo->renderJsonLd()->toHtml();
@@ -223,7 +223,7 @@ it('renders FAQPage with author as JsonLdBlock', function () {
     $author = \ThreeOhEight\Seo\JsonLd\JsonLdBlock::make('PoliticalParty')->title('VVD');
 
     $seo->jsonLd()->faqPage([
-        ['q' => 'What is VAT?', 'a' => 'A tax.', 'author' => $author],
+        ['q' => 'What is Acme?', 'a' => 'A simple answer.', 'author' => $author],
     ]);
 
     $html = $seo->renderJsonLd()->toHtml();
@@ -336,14 +336,14 @@ it('renders WebSite with inLanguage and publisher', function () {
 
 it('renders WebSite with only name (backward compat)', function () {
     $seo = $this->makeSeo();
-    $seo->jsonLd()->webSite('PayFlo');
+    $seo->jsonLd()->webSite('Acme');
 
     $html = $seo->renderJsonLd()->toHtml();
     $json = str_replace(['<script type="application/ld+json">', '</script>'], '', $html);
     $data = json_decode($json, true);
 
     expect($data['@type'])->toBe('WebSite')
-        ->and($data['name'])->toBe('PayFlo')
+        ->and($data['name'])->toBe('Acme')
         ->and($data)->not->toHaveKey('inLanguage')
         ->and($data)->not->toHaveKey('publisher');
 });

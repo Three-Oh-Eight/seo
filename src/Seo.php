@@ -296,6 +296,14 @@ class Seo
             $lines[] = '<meta property="og:url" content="'.e($url).'">';
         }
 
+        if ($this->data->ogLocale !== null) {
+            $lines[] = '<meta property="og:locale" content="'.e($this->data->ogLocale).'">';
+        }
+
+        foreach ($this->data->ogAlternateLocales as $locale) {
+            $lines[] = '<meta property="og:locale:alternate" content="'.e($locale).'">';
+        }
+
         $image = $this->data->image ?? $this->defaults->ogImage;
         if ($image) {
             $lines[] = '<meta property="og:image" content="'.e($image).'">';

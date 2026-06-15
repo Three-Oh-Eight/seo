@@ -391,6 +391,51 @@ it('omits og:description when all null', function () {
     expect($html)->not->toContain('og:description');
 });
 
+it('renders og:locale via og proxy', function () {
+    $seo = $this->makeSeo();
+    $seo->og()->locale('en_US');
+
+    $html = $seo->renderOpenGraph()->toHtml();
+
+    expect($html)->toContain('property="og:locale" content="en_US"');
+});
+
+it('omits og:locale when not set', function () {
+    $seo = $this->makeSeo();
+
+    $html = $seo->renderOpenGraph()->toHtml();
+
+    expect($html)->not->toContain('og:locale');
+});
+
+it('renders og:locale:alternate for each locale via og proxy', function () {
+    $seo = $this->makeSeo();
+    $seo->og()->alternateLocale(['nl_NL', 'de_DE']);
+
+    $html = $seo->renderOpenGraph()->toHtml();
+
+    expect($html)->toContain('property="og:locale:alternate" content="nl_NL"')
+        ->and($html)->toContain('property="og:locale:alternate" content="de_DE"');
+});
+
+it('accepts a single string for og:locale:alternate and dedupes', function () {
+    $seo = $this->makeSeo();
+    $seo->og()->alternateLocale('nl_NL');
+    $seo->og()->alternateLocale('nl_NL');
+
+    $html = $seo->renderOpenGraph()->toHtml();
+
+    expect(substr_count($html, 'property="og:locale:alternate" content="nl_NL"'))->toBe(1);
+});
+
+it('omits og:locale:alternate when none set', function () {
+    $seo = $this->makeSeo();
+
+    $html = $seo->renderOpenGraph()->toHtml();
+
+    expect($html)->not->toContain('og:locale:alternate');
+});
+
 // --- Twitter rendering ---
 
 it('always renders twitter:card', function () {

@@ -105,6 +105,24 @@ Seo::title('Page')
     ->description('Shared description');
 ```
 
+Set the Open Graph locale (and any alternates) for multilingual pages:
+
+```php
+Seo::og()->locale('en_US')->og()->alternateLocale('nl_NL');
+
+// alternateLocale also accepts an array, and dedupes:
+Seo::og()->alternateLocale(['nl_NL', 'de_DE']);
+```
+
+Renders:
+
+```html
+<meta property="og:locale" content="en_US">
+<meta property="og:locale:alternate" content="nl_NL">
+```
+
+`og:locale` is emitted only when set; one `og:locale:alternate` tag is emitted per alternate.
+
 ### JSON-LD
 
 ```php
@@ -259,6 +277,8 @@ Tags resolve in this order:
 | `og:title` | `og()->title()` > formatted page title > site name |
 | `og:description` | `og()->description()` > `description()` > config `description` > omitted |
 | `og:image` | `image()` > config `og_image` > omitted |
+| `og:locale` | `og()->locale()` > omitted |
+| `og:locale:alternate` | `og()->alternateLocale()` (one tag per entry) > omitted |
 | `twitter:title` | `twitter()->title()` > formatted page title > site name |
 | `twitter:description` | `twitter()->description()` > `description()` > config `description` > omitted |
 | `twitter:image` | `image()` > config `twitter_image` > omitted |

@@ -20,6 +20,11 @@ class SeoData
 
     public ?string $ogDescription = null;
 
+    public ?string $ogLocale = null;
+
+    /** @var list<string> */
+    public array $ogAlternateLocales = [];
+
     public ?string $twitterTitle = null;
 
     public ?string $twitterDescription = null;

@@ -1,6 +1,12 @@
 # Changelog
 
-## 1.0.0 — 2026-03-20
+## 0.2.0 - 2026-06-15
+
+### Added
+
+- Add `og()->locale()` and `og()->alternateLocale()` to set `og:locale` and `og:locale:alternate` (one tag per entry, deduped), rendered only when set.
+
+## 1.0.0 - 2026-03-20
 
 Initial release.
 

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-`three_oh_eight/seo` — a lean, Laravel-native SEO tag management package. Used across the 308 monorepo apps (PayFlo, ChaosDesk, ClearHead). No tests or build system yet; this is a pure PHP library with Blade views.
+`three_oh_eight/seo` — a lean, Laravel-native SEO tag management package. A pure PHP library with Blade views.
 
 ## Package Details
 
@@ -28,7 +28,7 @@ The package is small (~12 files) with a clear flow:
 
 - **Scoped binding**: `Seo` is scoped (not singleton) — fresh instance per request, safe for Octane
 - **Cascade fallback**: Page-specific data → OG/Twitter-specific data → defaults from config
-- **Title construction**: Page title + separator + site name (e.g. "Dashboard - PayFlo"). When no page title, renders site name alone
+- **Title construction**: Page title + separator + site name (e.g. "Dashboard - Acme"). When no page title, renders site name alone
 - **Suffix vs separator**: `suffix` is appended to OG/Twitter titles; `separator` is used for the `<title>` tag
 - **Auto-canonical**: Enabled by default via config; uses `url()->current()`
 
@@ -38,7 +38,7 @@ The package is small (~12 files) with a clear flow:
 // In a controller or Livewire component
 Seo::title('Dashboard')->description('Your overview');
 Seo::noindex(); // auth pages
-Seo::jsonLd('Organization')->title('PayFlo')->value('url', 'https://payflo.eu');
+Seo::jsonLd('Organization')->title('Acme')->value('url', 'https://acme.test');
 
 // In layout blade
 <x-seo::tags />
