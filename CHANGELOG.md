@@ -6,7 +6,7 @@
 
 - Add `og()->locale()` and `og()->alternateLocale()` to set `og:locale` and `og:locale:alternate` (one tag per entry, deduped), rendered only when set.
 
-## 1.0.0 - 2026-03-20
+## 0.1.0 - 2026-03-20
 
 Initial release.
 
