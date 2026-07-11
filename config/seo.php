@@ -14,4 +14,25 @@ return [
     'twitter_site' => null,
 
     'canonical_strip' => [],
+
+    /*
+    |--------------------------------------------------------------------------
+    | MCP server card (agent discovery)
+    |--------------------------------------------------------------------------
+    |
+    | Opt-in discovery document for an MCP server hosted by this application,
+    | served at /.well-known/mcp.json, /.well-known/mcp and
+    | /.well-known/mcp/server-card.json (SEP-2127's canonical path has moved
+    | between draft revisions, so all three probe paths answer identically).
+    | The card is emitted verbatim, so the application controls the exact
+    | field shape and this package never has to chase spec drift. Keep the
+    | shape aligned with the current SEP-2127 text (protocolVersion,
+    | serverInfo.name/version, transport.type/endpoint, capabilities,
+    | authentication.required).
+    |
+    */
+    'server_card' => [
+        'enabled' => false,
+        'card' => [],
+    ],
 ];

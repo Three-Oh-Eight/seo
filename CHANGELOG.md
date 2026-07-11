@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.0 - 2026-07-11
+
+### Added
+
+- Opt-in MCP server-card discovery: with `seo.server_card.enabled`, the package serves the configured card verbatim at `/.well-known/mcp.json`, `/.well-known/mcp` and `/.well-known/mcp/server-card.json` (SEP-2127's canonical path is still in flux, so every probe path answers identically) with `Cache-Control: max-age=3600`, `X-Content-Type-Options: nosniff` and permissive CORS for GET. Disabled by default; the application owns the exact field shape via config.
+
 ## 0.2.0 - 2026-06-15
 
 ### Added

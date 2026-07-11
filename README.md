@@ -292,6 +292,26 @@ Titles are formatted as `{page title}{separator}{site name}`:
 
 OG and Twitter titles use the same formatted title unless overridden via their proxies.
 
+## MCP server card (agent discovery)
+
+If the application hosts an MCP server, the package can serve its discovery document. Enable it and provide the card verbatim (the shape follows SEP-2127, which is still a draft; the package never rewrites your payload):
+
+```php
+// config/seo.php
+'server_card' => [
+    'enabled' => true,
+    'card' => [
+        'protocolVersion' => '2025-06-18',
+        'serverInfo' => ['name' => 'my-app', 'version' => '1.0.0'],
+        'transport' => ['type' => 'streamable-http', 'endpoint' => 'https://example.com/mcp'],
+        'capabilities' => ['tools' => true],
+        'authentication' => ['required' => true, 'method' => 'oauth2'],
+    ],
+],
+```
+
+The card is then served at `/.well-known/mcp.json`, `/.well-known/mcp` and `/.well-known/mcp/server-card.json` (identical payload; the canonical path has moved between spec revisions) with hourly caching, `nosniff` and permissive CORS. Disabled by default: no routes are registered without the flag.
+
 ## Testing
 
 ```bash

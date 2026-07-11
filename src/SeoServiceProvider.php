@@ -31,5 +31,29 @@ class SeoServiceProvider extends ServiceProvider
         });
 
         $this->app['router']->aliasMiddleware('seo', \ThreeOhEight\Seo\Middleware\SeoMiddleware::class);
+
+        $this->registerServerCardRoutes();
+    }
+
+    /**
+     * The opt-in MCP server-card discovery endpoints. All three probe paths
+     * answer identically because SEP-2127's canonical path has moved between
+     * draft revisions; serving every candidate is cheap.
+     */
+    private function registerServerCardRoutes(): void
+    {
+        if (! $this->app['config']->get('seo.server_card.enabled', false)) {
+            return;
+        }
+
+        $router = $this->app['router'];
+
+        foreach ([
+            '/.well-known/mcp.json',
+            '/.well-known/mcp',
+            '/.well-known/mcp/server-card.json',
+        ] as $path) {
+            $router->get($path, \ThreeOhEight\Seo\Http\ServerCardController::class);
+        }
     }
 }
