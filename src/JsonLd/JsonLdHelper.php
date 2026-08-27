@@ -99,8 +99,9 @@ class JsonLdHelper
     }
 
     /**
-     * Creates a QAPage schema rendered as a separate <script> tag (not merged into @graph).
-     * Matches the Google-validated pattern used by ikformeer.nl.
+     * Creates a QAPage schema rendered as a separate <script> tag (not merged
+     * into @graph). Follows Google's validated QAPage structured-data pattern,
+     * which rejects QAPage nested inside @graph.
      */
     public function qaPage(
         string $question,
@@ -108,7 +109,7 @@ class JsonLdHelper
         ?string $questionDetail = null,
         ?string $answerUrl = null,
         ?string $dateCreated = null,
-        JsonLdBlock|null $author = null,
+        ?JsonLdBlock $author = null,
     ): Seo {
         $answerBlock = JsonLdBlock::make('Answer')->value('text', $answer);
 
@@ -153,8 +154,8 @@ class JsonLdHelper
         ?string $datePublished = null,
         ?string $dateModified = null,
         ?string $image = null,
-        JsonLdBlock|null $author = null,
-        JsonLdBlock|null $publisher = null,
+        ?JsonLdBlock $author = null,
+        ?JsonLdBlock $publisher = null,
         ?string $articleSection = null,
         ?string $keywords = null,
         ?string $url = null,
@@ -237,8 +238,8 @@ class JsonLdHelper
         ?string $url = null,
         ?string $description = null,
         ?string $inLanguage = null,
-        JsonLdBlock|null $publisher = null,
-        JsonLdBlock|null $potentialAction = null,
+        ?JsonLdBlock $publisher = null,
+        ?JsonLdBlock $potentialAction = null,
     ): Seo {
         $block = JsonLdBlock::make('WebSite')->title($name);
 

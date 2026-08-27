@@ -74,6 +74,47 @@ Seo::noindex();                             // shortcut: "noindex, nofollow"
 Seo::meta('author', 'Christoph');           // arbitrary <meta> tags
 ```
 
+Titles are formatted as `{page title}{separator}{site name}`; pass `exact: true` to skip that:
+
+```php
+Seo::title('Standalone Title', exact: true);  // <title>Standalone Title</title>
+```
+
+`robots()` also accepts the `RobotsRule` enum, or a mixed array:
+
+```php
+use ThreeOhEight\Seo\RobotsRule;
+
+Seo::robots(RobotsRule::NoIndex);
+Seo::robots([RobotsRule::NoIndex, 'nofollow']);
+```
+
+### Route-level metadata
+
+Declare SEO metadata on routes; values survive `route:cache`:
+
+```php
+Route::get('/pricing', PricingController::class)
+    ->seo(title: 'Pricing', description: 'Plans and pricing', ogType: 'website');
+
+Route::get('/internal', InternalController::class)->seo(noindex: true);
+
+// Group syntax (plain scalars only):
+Route::group(['seo' => ['robots' => 'noindex']], function () {
+    Route::get('/app/dashboard', DashboardController::class);
+});
+```
+
+The cascade resolves field by field: runtime `Seo::...()` calls beat route metadata, route metadata beats config defaults. Supported fields: `title`, `description`, `robots`, `canonical`, `noindex` (bool shorthand), `ogType`. Note: fluent chaining before `group()` (`Route::seo(...)->group(...)`) is not supported; use the group-attribute syntax.
+
+### Conditionals
+
+`Seo` is Conditionable:
+
+```php
+Seo::when($post->isDraft(), fn ($seo) => $seo->noindex());
+```
+
 ### Pagination
 
 ```php
@@ -91,6 +132,7 @@ Override platform-specific titles/descriptions when they should differ from the 
 ```php
 Seo::og()->title('Custom OG title');
 Seo::og()->description('Custom OG description');
+Seo::og()->type('article');                 // per-page og:type (default from config og_type)
 
 Seo::twitter()->title('Custom Twitter title');
 Seo::twitter()->description('Custom Twitter description');
@@ -262,18 +304,23 @@ $html = Seo::renderMeta();      // meta section only
 $html = Seo::renderOpenGraph();
 $html = Seo::renderTwitter();
 $html = Seo::renderJsonLd();
+
+$data = Seo::toArray();         // all resolved values as a structured array (handy in tests)
 ```
 
 ## Fallback cascade
 
 Tags resolve in this order:
 
+Route-level metadata (set via `Route::seo()` or the `seo` group attribute) sits between runtime calls and config defaults for `title`, `description`, `robots`, `canonical` and `og:type`.
+
 | Tag | Resolution |
 |-----|-----------|
-| `<title>` | `title()` > config `title` > site name only |
-| `meta description` | `description()` > config `description` > omitted |
-| `canonical` | `canonical()` > `url()->current()` (if `auto_canonical`) > omitted |
-| `robots` | `robots()`/`noindex()` > config `robots` > omitted |
+| `<title>` | `title()` > route `title` > config `title` > site name only |
+| `meta description` | `description()` > route `description` > config `description` > omitted |
+| `canonical` | `canonical()` > route `canonical` > `url()->current()` (if `auto_canonical`) > omitted |
+| `robots` | `robots()`/`noindex()` > route `robots` > config `robots` > omitted |
+| `og:type` | `og()->type()` > route `ogType` > config `og_type` |
 | `og:title` | `og()->title()` > formatted page title > site name |
 | `og:description` | `og()->description()` > `description()` > config `description` > omitted |
 | `og:image` | `image()` > config `og_image` > omitted |

@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.4.0 - 2026-08-27
+
+### Added
+
+- Route-level SEO metadata: `Route::get(...)->seo(title: ..., description: ..., robots: ..., canonical: ..., noindex: ..., ogType: ...)` and the `Route::group(['seo' => [...]], ...)` group attribute (plain scalars only). Values are stored in the route action, survive `route:cache`, and form a middle cascade layer resolved field by field: runtime calls beat route metadata, route metadata beats config defaults. Fluent registrar chaining (`Route::seo(...)->group(...)`) is not supported; use the group-attribute syntax.
+- `RobotsRule` string-backed enum; `robots()` now accepts a string, a `RobotsRule` case, or a mixed array of both, joined with `, `.
+- `title('X', exact: true)` renders the title without the `{separator}{site_name}` formatting, consistently across `<title>`, `og:title` and `twitter:title`.
+- `og()->type('article')` overrides `og:type` per page (previously config-only).
+- `toArray()` returns all resolved post-cascade values as a structured array (JSON-LD excluded).
+- `Seo` is now Conditionable: `Seo::when(...)` / `Seo::unless(...)`.
+
+### Fixed
+
+- `og:title` and `twitter:title` now fall back to the config-level default title, matching `<title>`. Previously a config `title` with no page title made `<title>` and `og:title` diverge.
+
+### Changed
+
+- Apps that registered `when` or `unless` macros on `Seo` will now hit the Conditionable trait methods instead; rename such macros.
+
 ## 0.3.0 - 2026-07-11
 
 ### Added
@@ -31,7 +50,7 @@ Initial release.
 - Macroable for custom extensions
 - Scoped binding (Octane-safe)
 - Blade components: `<x-seo::tags />`, `<x-seo::meta />`, `<x-seo::opengraph />`, `<x-seo::twitter />`, `<x-seo::json-ld />`
-- 116 tests with Pest 4
+- Test suite with Pest 4
 
 ---
 

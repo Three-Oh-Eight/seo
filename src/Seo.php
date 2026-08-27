@@ -3,25 +3,33 @@
 namespace ThreeOhEight\Seo;
 
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Routing\Route;
+use Illuminate\Support\Traits\Conditionable;
 use Illuminate\Support\Traits\Macroable;
 use ThreeOhEight\Seo\Contracts\Seoable;
 use ThreeOhEight\Seo\JsonLd\JsonLdBlock;
 use ThreeOhEight\Seo\JsonLd\JsonLdHelper;
+use ThreeOhEight\Seo\Routing\RouteSeo;
 
 class Seo
 {
+    use Conditionable;
     use Macroable {
         __call as macroCall;
     }
+
+    /** @var array<string, string>|null */
+    private ?array $routeSeo = null;
 
     public function __construct(
         private SeoData $data,
         private readonly SeoDefaults $defaults,
     ) {}
 
-    public function title(string $title): self
+    public function title(string $title, bool $exact = false): self
     {
         $this->data->title = $title;
+        $this->data->titleExact = $exact;
 
         return $this;
     }
@@ -40,11 +48,31 @@ class Seo
         return $this;
     }
 
-    public function robots(string $robots): self
+    /**
+     * @param  string|RobotsRule|array<int, string|RobotsRule>  $directives
+     */
+    public function robots(string|RobotsRule|array $directives): self
     {
-        $this->data->robots = $robots;
+        $this->data->robots = self::robotsToString($directives);
 
         return $this;
+    }
+
+    /**
+     * @internal Also used by the route macro to normalize before caching.
+     *
+     * @param  string|RobotsRule|array<int, string|RobotsRule>  $directives
+     */
+    public static function robotsToString(string|RobotsRule|array $directives): string
+    {
+        $directives = is_array($directives) ? $directives : [$directives];
+
+        return implode(', ', array_map(
+            static fn (string|RobotsRule $directive): string => $directive instanceof RobotsRule
+                ? $directive->value
+                : $directive,
+            $directives,
+        ));
     }
 
     public function canonical(string $url): self
@@ -225,9 +253,9 @@ class Seo
     {
         $lines = [];
 
-        $lines[] = '<title>'.e($this->formatTitle($this->data->title ?? $this->defaults->title)).'</title>';
+        $lines[] = '<title>'.e($this->resolveTitle()).'</title>';
 
-        $description = $this->data->description ?? $this->defaults->description;
+        $description = $this->resolveDescription();
         if ($description) {
             $lines[] = '<meta name="description" content="'.e($description).'">';
         }
@@ -237,7 +265,7 @@ class Seo
             $lines[] = '<link rel="canonical" href="'.e($canonical).'">';
         }
 
-        $robots = $this->data->robots ?? $this->defaults->robots;
+        $robots = $this->resolveRobots();
         if ($robots) {
             $lines[] = '<meta name="robots" content="'.e($robots).'">';
         }
@@ -277,16 +305,12 @@ class Seo
     {
         $lines = [];
 
-        $lines[] = '<meta property="og:type" content="'.e($this->defaults->ogType).'">';
+        $lines[] = '<meta property="og:type" content="'.e($this->resolveOgType()).'">';
         $lines[] = '<meta property="og:site_name" content="'.e($this->defaults->siteName).'">';
 
-        $ogTitle = $this->data->ogTitle
-            ?? $this->formatTitle($this->data->title);
-        $lines[] = '<meta property="og:title" content="'.e($ogTitle).'">';
+        $lines[] = '<meta property="og:title" content="'.e($this->resolveOgTitle()).'">';
 
-        $ogDescription = $this->data->ogDescription
-            ?? $this->data->description
-            ?? $this->defaults->description;
+        $ogDescription = $this->resolveOgDescription();
         if ($ogDescription) {
             $lines[] = '<meta property="og:description" content="'.e($ogDescription).'">';
         }
@@ -304,7 +328,7 @@ class Seo
             $lines[] = '<meta property="og:locale:alternate" content="'.e($locale).'">';
         }
 
-        $image = $this->data->image ?? $this->defaults->ogImage;
+        $image = $this->resolveOgImage();
         if ($image) {
             $lines[] = '<meta property="og:image" content="'.e($image).'">';
 
@@ -334,18 +358,14 @@ class Seo
 
         $lines[] = '<meta name="twitter:card" content="'.e($this->defaults->twitterCard).'">';
 
-        $twitterTitle = $this->data->twitterTitle
-            ?? $this->formatTitle($this->data->title);
-        $lines[] = '<meta name="twitter:title" content="'.e($twitterTitle).'">';
+        $lines[] = '<meta name="twitter:title" content="'.e($this->resolveTwitterTitle()).'">';
 
-        $twitterDescription = $this->data->twitterDescription
-            ?? $this->data->description
-            ?? $this->defaults->description;
+        $twitterDescription = $this->resolveTwitterDescription();
         if ($twitterDescription) {
             $lines[] = '<meta name="twitter:description" content="'.e($twitterDescription).'">';
         }
 
-        $image = $this->data->image ?? $this->defaults->twitterImage;
+        $image = $this->resolveTwitterImage();
         if ($image) {
             $lines[] = '<meta name="twitter:image" content="'.e($image).'">';
         }
@@ -366,19 +386,129 @@ class Seo
         return new SeoOutput($this->data->jsonLd->render());
     }
 
-    private function formatTitle(?string $pageTitle): string
+    /**
+     * All resolved (post-cascade) values as a structured array. JSON-LD is
+     * excluded; use renderJsonLd() for that.
+     *
+     * @return array<string, mixed>
+     */
+    public function toArray(): array
     {
-        if ($pageTitle) {
-            return $pageTitle.$this->defaults->separator.$this->defaults->siteName;
+        return [
+            'title' => $this->resolveTitle(),
+            'description' => $this->resolveDescription(),
+            'canonical' => $this->resolveCanonical(),
+            'robots' => $this->resolveRobots(),
+            'prev' => $this->data->prev,
+            'next' => $this->data->next,
+            'meta' => $this->data->meta,
+            'alternates' => $this->data->alternates,
+            'og' => [
+                'type' => $this->resolveOgType(),
+                'site_name' => $this->defaults->siteName,
+                'title' => $this->resolveOgTitle(),
+                'description' => $this->resolveOgDescription(),
+                'url' => $this->resolveCanonical(),
+                'locale' => $this->data->ogLocale,
+                'alternate_locales' => $this->data->ogAlternateLocales,
+                'image' => $this->resolveOgImage(),
+                'image_width' => $this->data->imageWidth,
+                'image_height' => $this->data->imageHeight,
+                'image_type' => $this->data->imageType,
+                'image_alt' => $this->data->imageAlt,
+            ],
+            'twitter' => [
+                'card' => $this->defaults->twitterCard,
+                'title' => $this->resolveTwitterTitle(),
+                'description' => $this->resolveTwitterDescription(),
+                'image' => $this->resolveTwitterImage(),
+                'site' => $this->defaults->twitterSite,
+            ],
+        ];
+    }
+
+    /**
+     * Route-level metadata set via the Route::seo() macro or a 'seo' group
+     * attribute. Read lazily: rendering happens in views, long after routing.
+     */
+    private function routeSeo(string $field): ?string
+    {
+        if ($this->routeSeo === null) {
+            $route = app()->bound('request') ? request()->route() : null;
+            $raw = $route instanceof Route ? $route->getAction(RouteSeo::KEY) : null;
+
+            $this->routeSeo = is_array($raw) ? RouteSeo::normalize($raw) : [];
         }
 
-        return $this->defaults->siteName;
+        return $this->routeSeo[$field] ?? null;
+    }
+
+    private function resolveTitle(): string
+    {
+        $title = $this->data->title ?? $this->routeSeo('title') ?? $this->defaults->title;
+
+        if ($title === null) {
+            return $this->defaults->siteName;
+        }
+
+        return $this->data->titleExact
+            ? $title
+            : $title.$this->defaults->separator.$this->defaults->siteName;
+    }
+
+    private function resolveDescription(): ?string
+    {
+        return $this->data->description ?? $this->routeSeo('description') ?? $this->defaults->description;
+    }
+
+    private function resolveRobots(): ?string
+    {
+        return $this->data->robots ?? $this->routeSeo('robots') ?? $this->defaults->robots;
+    }
+
+    private function resolveOgType(): string
+    {
+        return $this->data->ogType ?? $this->routeSeo('og_type') ?? $this->defaults->ogType;
+    }
+
+    private function resolveOgTitle(): string
+    {
+        return $this->data->ogTitle ?? $this->resolveTitle();
+    }
+
+    private function resolveOgDescription(): ?string
+    {
+        return $this->data->ogDescription ?? $this->resolveDescription();
+    }
+
+    private function resolveOgImage(): ?string
+    {
+        return $this->data->image ?? $this->defaults->ogImage;
+    }
+
+    private function resolveTwitterTitle(): string
+    {
+        return $this->data->twitterTitle ?? $this->resolveTitle();
+    }
+
+    private function resolveTwitterDescription(): ?string
+    {
+        return $this->data->twitterDescription ?? $this->resolveDescription();
+    }
+
+    private function resolveTwitterImage(): ?string
+    {
+        return $this->data->image ?? $this->defaults->twitterImage;
     }
 
     private function resolveCanonical(): ?string
     {
         if ($this->data->canonical) {
             return $this->data->canonical;
+        }
+
+        if ($routeCanonical = $this->routeSeo('canonical')) {
+            return $routeCanonical;
         }
 
         if ($this->defaults->autoCanonical) {

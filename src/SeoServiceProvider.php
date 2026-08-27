@@ -2,8 +2,12 @@
 
 namespace ThreeOhEight\Seo;
 
+use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\ServiceProvider;
+use ThreeOhEight\Seo\Http\ServerCardController;
+use ThreeOhEight\Seo\Middleware\SeoMiddleware;
+use ThreeOhEight\Seo\Routing\RouteSeo;
 
 class SeoServiceProvider extends ServiceProvider
 {
@@ -30,9 +34,45 @@ class SeoServiceProvider extends ServiceProvider
             return "<?php echo app(\ThreeOhEight\Seo\Seo::class)->render(); ?>";
         });
 
-        $this->app['router']->aliasMiddleware('seo', \ThreeOhEight\Seo\Middleware\SeoMiddleware::class);
+        $this->app['router']->aliasMiddleware('seo', SeoMiddleware::class);
+
+        $this->registerRouteMacro();
 
         $this->registerServerCardRoutes();
+    }
+
+    /**
+     * Route-level SEO metadata: Route::get(...)->seo(title: 'Pricing'). Values
+     * are normalized to plain scalars in the route action so they survive
+     * route:cache. Group syntax: Route::group(['seo' => [...]], ...) with
+     * plain scalars only.
+     */
+    private function registerRouteMacro(): void
+    {
+        Route::macro('seo', function (
+            ?string $title = null,
+            ?string $description = null,
+            string|RobotsRule|array|null $robots = null,
+            ?string $canonical = null,
+            ?bool $noindex = null,
+            ?string $ogType = null,
+        ): Route {
+            /** @var Route $this */
+            $values = array_filter([
+                'title' => $title,
+                'description' => $description,
+                'robots' => $robots !== null ? Seo::robotsToString($robots) : null,
+                'canonical' => $canonical,
+                'noindex' => $noindex,
+                'og_type' => $ogType,
+            ], static fn ($value) => $value !== null);
+
+            // Group attributes are merged into the action before this macro
+            // runs, so a plain array_merge makes route values beat group values.
+            $this->action[RouteSeo::KEY] = array_merge($this->action[RouteSeo::KEY] ?? [], $values);
+
+            return $this;
+        });
     }
 
     /**
@@ -53,7 +93,7 @@ class SeoServiceProvider extends ServiceProvider
             '/.well-known/mcp',
             '/.well-known/mcp/server-card.json',
         ] as $path) {
-            $router->get($path, \ThreeOhEight\Seo\Http\ServerCardController::class);
+            $router->get($path, ServerCardController::class);
         }
     }
 }

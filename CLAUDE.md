@@ -14,10 +14,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Architecture
 
-The package is small (~12 files) with a clear flow:
+The package is small (~20 source files) with a clear flow:
 
-1. **`SeoServiceProvider`** registers a scoped `Seo` instance per request, hydrated with `SeoDefaults` from `config/seo.php`
-2. **`Seo`** (main service) — fluent API to set title, description, robots, canonical, image, OG, Twitter, and JSON-LD. Renders HTML output via `SeoOutput`
+1. **`SeoServiceProvider`** registers a scoped `Seo` instance per request, hydrated with `SeoDefaults` from `config/seo.php`; also registers the `Route::seo()` macro and the `seo` middleware alias
+2. **`Seo`** (main service) — fluent API to set title, description, robots, canonical, image, OG, Twitter, and JSON-LD. Renders HTML output via `SeoOutput`; `toArray()` exposes all resolved values. Macroable and Conditionable (`when`/`unless`)
 3. **`SeoData`** — mutable DTO holding per-page overrides (title, description, robots, canonical, image, OG/Twitter-specific titles/descriptions, JSON-LD blocks)
 4. **`SeoDefaults`** — readonly value object for site-wide defaults from config. Fallback when `SeoData` properties are null
 5. **Proxies** — `OpenGraphProxy` and `TwitterProxy` allow `Seo::og()->title()` / `Seo::twitter()->title()` for platform-specific overrides, returning the `Seo` instance for chaining
@@ -27,9 +27,10 @@ The package is small (~12 files) with a clear flow:
 ## Key Design Decisions
 
 - **Scoped binding**: `Seo` is scoped (not singleton) — fresh instance per request, safe for Octane
-- **Cascade fallback**: Page-specific data → OG/Twitter-specific data → defaults from config
-- **Title construction**: Page title + separator + site name (e.g. "Dashboard - Acme"). When no page title, renders site name alone
-- **Suffix vs separator**: `suffix` is appended to OG/Twitter titles; `separator` is used for the `<title>` tag
+- **Cascade fallback**: Runtime data → route-level metadata → defaults from config, resolved field by field
+- **Route-level metadata**: `Route::get(...)->seo(title: ..., description: ..., robots: ..., canonical: ..., noindex: ..., ogType: ...)` or `Route::group(['seo' => [...]], ...)` (plain scalars only). Values are stored in the route action and survive `route:cache`
+- **Title construction**: Page title + separator + site name (e.g. "Dashboard - Acme"). When no page title, renders site name alone. `title('X', exact: true)` skips the separator formatting
+- **Robots**: `robots()` accepts a string, a `RobotsRule` enum case, or a mixed array of both
 - **Auto-canonical**: Enabled by default via config; uses `url()->current()`
 
 ## Usage in Consuming Apps

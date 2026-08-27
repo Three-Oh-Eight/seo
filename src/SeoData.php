@@ -8,6 +8,8 @@ class SeoData
 {
     public ?string $title = null;
 
+    public bool $titleExact = false;
+
     public ?string $description = null;
 
     public ?string $robots = null;
@@ -15,6 +17,8 @@ class SeoData
     public ?string $canonical = null;
 
     public ?string $image = null;
+
+    public ?string $ogType = null;
 
     public ?string $ogTitle = null;
 

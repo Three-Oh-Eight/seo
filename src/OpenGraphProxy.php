@@ -9,6 +9,13 @@ class OpenGraphProxy
         private Seo $seo,
     ) {}
 
+    public function type(string $type): Seo
+    {
+        $this->data->ogType = $type;
+
+        return $this->seo;
+    }
+
     public function title(string $title): Seo
     {
         $this->data->ogTitle = $title;

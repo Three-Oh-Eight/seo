@@ -12,10 +12,10 @@ use ThreeOhEight\Seo\SeoOutput;
 use ThreeOhEight\Seo\TwitterProxy;
 
 /**
- * @method static \ThreeOhEight\Seo\Seo title(string $title)
+ * @method static \ThreeOhEight\Seo\Seo title(string $title, bool $exact = false)
  * @method static \ThreeOhEight\Seo\Seo description(string $description)
  * @method static \ThreeOhEight\Seo\Seo noindex()
- * @method static \ThreeOhEight\Seo\Seo robots(string $robots)
+ * @method static \ThreeOhEight\Seo\Seo robots(string|\ThreeOhEight\Seo\RobotsRule|array $directives)
  * @method static \ThreeOhEight\Seo\Seo canonical(string $url)
  * @method static \ThreeOhEight\Seo\Seo image(string $url, ?int $width = null, ?int $height = null, ?string $type = null, ?string $alt = null)
  * @method static \ThreeOhEight\Seo\Seo meta(string $name, string $content)
@@ -38,6 +38,9 @@ use ThreeOhEight\Seo\TwitterProxy;
  * @method static SeoOutput renderOpenGraph()
  * @method static SeoOutput renderTwitter()
  * @method static SeoOutput renderJsonLd()
+ * @method static array toArray()
+ * @method static \ThreeOhEight\Seo\Seo when(mixed $value = null, ?callable $callback = null, ?callable $default = null)
+ * @method static \ThreeOhEight\Seo\Seo unless(mixed $value = null, ?callable $callback = null, ?callable $default = null)
  * @method static void macro(string $name, object|callable $macro)
  *
  * @see \ThreeOhEight\Seo\Seo
