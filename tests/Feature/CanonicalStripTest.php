@@ -1,95 +1,51 @@
 <?php
 
-use ThreeOhEight\Seo\Seo;
+use Laravel\Head\Facades\Head;
+use Laravel\Head\HeadManager;
 
-it('preserves current behavior with empty strip list', function () {
-    $seo = $this->makeSeo(['auto_canonical' => true, 'canonical_strip' => []]);
+it('drops the whole query string on the automatic canonical', function () {
+    $this->withSeoConfig(['canonical_strip' => ['utm_*']]);
+    $this->headRoute('/products');
 
-    $this->get('/test-page?utm_source=google&page=2');
-    $html = $seo->renderMeta()->toHtml();
-
-    // With empty strip list, uses url()->current() which excludes query string
-    expect($html)->toContain('rel="canonical"')
-        ->and($html)->not->toContain('utm_source');
+    $this->get('/products?page=2&utm_source=google')
+        ->assertSee('<link rel="canonical" href="https://localhost/products">', false);
 });
 
-it('strips utm params via wildcard', function () {
-    $seo = $this->makeSeo(['auto_canonical' => true, 'canonical_strip' => ['utm_*']]);
+it('keeps the query string minus the config patterns', function () {
+    $this->withSeoConfig(['canonical_strip' => ['utm_*', 'fbclid']]);
+    $this->headRoute('/products', fn () => Head::canonicalWithout());
 
-    $this->get('/pricing?utm_source=google&utm_medium=cpc&page=2');
-    $html = $seo->renderMeta()->toHtml();
+    $html = $this->get('/products?category=tools&page=2&utm_source=news&utm_medium=mail&fbclid=abc')->getContent();
 
-    expect($html)->toContain('page=2')
-        ->and($html)->not->toContain('utm_source')
-        ->and($html)->not->toContain('utm_medium');
+    expect($html)->toContain('<link rel="canonical" href="https://localhost/products?category=tools&amp;page=2">')
+        ->and($html)->not->toContain('utm_')
+        ->and($html)->not->toContain('fbclid');
 });
 
-it('strips exact param names', function () {
-    $seo = $this->makeSeo(['auto_canonical' => true, 'canonical_strip' => ['fbclid', 'gclid']]);
+it('combines config patterns with per-page params', function () {
+    $this->withSeoConfig(['canonical_strip' => ['utm_*']]);
+    $this->headRoute('/page', fn () => Head::canonicalWithout(['ref', 'sort']));
 
-    $this->get('/page?fbclid=abc&gclid=xyz&page=3');
-    $html = $seo->renderMeta()->toHtml();
+    $html = $this->get('/page?utm_source=google&ref=partner&sort=price&id=42')->getContent();
 
-    expect($html)->toContain('page=3')
-        ->and($html)->not->toContain('fbclid')
-        ->and($html)->not->toContain('gclid');
+    expect($html)->toContain('href="https://localhost/page?id=42"');
 });
 
-it('keeps non-matching params', function () {
-    $seo = $this->makeSeo(['auto_canonical' => true, 'canonical_strip' => ['utm_*']]);
+it('returns a clean url when every param is stripped', function () {
+    $this->headRoute('/page', fn () => Head::canonicalWithout(['utm_*', 'fbclid']));
 
-    $this->get('/products?category=tools&page=2&utm_source=newsletter');
-    $html = $seo->renderMeta()->toHtml();
-
-    expect($html)->toContain('category=tools')
-        ->and($html)->toContain('page=2');
+    $this->get('/page?utm_source=google&fbclid=abc')
+        ->assertSee('<link rel="canonical" href="https://localhost/page">', false);
 });
 
-it('strips per-page params via canonicalWithout', function () {
-    $seo = $this->makeSeo(['auto_canonical' => true, 'canonical_strip' => ['utm_*']]);
-    $seo->canonicalWithout(['sort', 'filter']);
+it('overrides a route canonical, and a later explicit canonical wins', function () {
+    $this->headRoute('/page', function () {
+        expect(Head::canonicalWithout(['sort']))->toBeInstanceOf(HeadManager::class);
 
-    $this->get('/products?sort=price&filter=active&page=1');
-    $html = $seo->renderMeta()->toHtml();
+        Head::canonical('https://example.com/page?utm_source=keep');
+    })->withHead(canonical: 'https://example.com/route');
 
-    expect($html)->toContain('page=1')
-        ->and($html)->not->toContain('sort=')
-        ->and($html)->not->toContain('filter=');
-});
-
-it('combines config and per-page strip patterns', function () {
-    $seo = $this->makeSeo(['auto_canonical' => true, 'canonical_strip' => ['utm_*']]);
-    $seo->canonicalWithout(['ref']);
-
-    $this->get('/page?utm_source=google&ref=partner&id=42');
-    $html = $seo->renderMeta()->toHtml();
-
-    expect($html)->toContain('id=42')
-        ->and($html)->not->toContain('utm_source')
-        ->and($html)->not->toContain('ref=partner');
-});
-
-it('never strips manual canonical', function () {
-    $seo = $this->makeSeo(['auto_canonical' => true, 'canonical_strip' => ['utm_*']]);
-    $seo->canonical('https://example.com/page?utm_source=keep');
-
-    $html = $seo->renderMeta()->toHtml();
-
-    expect($html)->toContain('href="https://example.com/page?utm_source=keep"');
-});
-
-it('returns clean url when all params stripped', function () {
-    $seo = $this->makeSeo(['auto_canonical' => true, 'canonical_strip' => ['utm_*', 'fbclid']]);
-
-    $this->get('/page?utm_source=google&fbclid=abc');
-    $html = $seo->renderMeta()->toHtml();
-
-    expect($html)->toContain('rel="canonical"')
-        ->and($html)->not->toContain('?');
-});
-
-it('returns self from canonicalWithout for chaining', function () {
-    $seo = $this->makeSeo();
-
-    expect($seo->canonicalWithout(['sort']))->toBeInstanceOf(Seo::class);
+    $this->get('/page?sort=asc')
+        ->assertSee('<link rel="canonical" href="https://example.com/page?utm_source=keep">', false)
+        ->assertDontSee('https://example.com/route', false);
 });

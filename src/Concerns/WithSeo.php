@@ -2,30 +2,40 @@
 
 namespace ThreeOhEight\Seo\Concerns;
 
+use Laravel\Head\Facades\Head;
+use Laravel\Head\HeadManager;
+use ReflectionClass;
+use ReflectionProperty;
 use ThreeOhEight\Seo\Contracts\Seoable;
-use ThreeOhEight\Seo\Seo;
 
 /**
- * Livewire trait that auto-applies SEO from Seoable properties.
+ * Livewire trait that applies head data before every render.
  *
- * Auto-detects public Seoable properties, or override seo(Seo $seo) for custom logic.
+ * Define seo(HeadManager $head) for custom logic; otherwise every public
+ * Seoable property is applied.
  */
 trait WithSeo
 {
     public function renderingWithSeo(): void
     {
-        $seo = app(Seo::class);
+        /** @var HeadManager $head */
+        $head = Head::getFacadeRoot();
 
         if (method_exists($this, 'seo')) {
-            $this->seo($seo);
+            $this->seo($head);
 
             return;
         }
 
-        foreach ((new \ReflectionClass($this))->getProperties(\ReflectionProperty::IS_PUBLIC) as $property) {
+        foreach ((new ReflectionClass($this))->getProperties(ReflectionProperty::IS_PUBLIC) as $property) {
+            if ($property->isStatic() || ! $property->isInitialized($this)) {
+                continue;
+            }
+
             $value = $property->getValue($this);
+
             if ($value instanceof Seoable) {
-                $value->toSeo($seo);
+                $value->toSeo($head);
             }
         }
     }

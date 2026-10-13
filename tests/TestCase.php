@@ -2,37 +2,77 @@
 
 namespace ThreeOhEight\Seo\Tests;
 
+use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\Route;
+use Laravel\Head\Facades\Head;
+use Laravel\Head\HeadManager;
+use Laravel\Head\HeadServiceProvider;
+use Livewire\LivewireServiceProvider;
 use Orchestra\Testbench\TestCase as OrchestraTestCase;
-use ThreeOhEight\Seo\Seo;
-use ThreeOhEight\Seo\SeoData;
-use ThreeOhEight\Seo\SeoDefaults;
 use ThreeOhEight\Seo\SeoServiceProvider;
 
 abstract class TestCase extends OrchestraTestCase
 {
     protected function getPackageProviders($app): array
     {
-        return [SeoServiceProvider::class];
+        return [
+            LivewireServiceProvider::class,
+            HeadServiceProvider::class,
+            SeoServiceProvider::class,
+        ];
     }
 
-    protected function makeSeo(array $configOverrides = []): Seo
+    protected function defineEnvironment($app): void
     {
-        $config = array_merge([
+        // Livewire checksums its snapshots with the encrypter.
+        $app['config']->set('app.key', 'base64:'.base64_encode(str_repeat('s', 32)));
+
+        foreach ([
             'site_name' => 'TestSite',
             'separator' => ' - ',
             'title' => null,
-            'description' => null,
-            'auto_canonical' => false,
-            'robots' => null,
+            'description' => 'Default description',
+            'auto_canonical' => true,
+            'robots' => 'index, follow',
             'og_type' => 'website',
-            'og_image' => null,
+            'og_image' => 'https://cdn.test/og.png',
             'twitter_card' => 'summary_large_image',
             'twitter_image' => null,
-            'twitter_site' => null,
-        ], $configOverrides);
+            'twitter_site' => '@testsite',
+            'canonical_strip' => [],
+        ] as $key => $value) {
+            $app['config']->set("seo.{$key}", $value);
+        }
+    }
 
-        $defaults = SeoDefaults::fromConfig($config);
+    /**
+     * Apply config overrides and re-resolve head, so the defaults layer is
+     * rebuilt from the new config the way a fresh application would.
+     *
+     * @param  array<string, mixed>  $config
+     */
+    protected function withSeoConfig(array $config): void
+    {
+        foreach ($config as $key => $value) {
+            config()->set("seo.{$key}", $value);
+        }
 
-        return new Seo(new SeoData, $defaults);
+        $this->app->forgetInstance(HeadManager::class);
+        Head::clearResolvedInstance();
+    }
+
+    /**
+     * Register a GET route that renders the @head directive, optionally
+     * running a callback first (the runtime layer).
+     */
+    protected function headRoute(string $uri, ?\Closure $runtime = null): \Illuminate\Routing\Route
+    {
+        return Route::get($uri, function () use ($runtime): string {
+            if ($runtime !== null) {
+                $runtime();
+            }
+
+            return Blade::render('@head');
+        });
     }
 }

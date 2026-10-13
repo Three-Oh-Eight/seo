@@ -2,24 +2,42 @@
 
 namespace ThreeOhEight\Seo;
 
-use Illuminate\Routing\Route;
-use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\ServiceProvider;
+use Laravel\Head\Facades\Schema;
+use Laravel\Head\HeadBuilder;
+use Laravel\Head\HeadManager;
+use Laravel\Head\TagRegistry;
+use ThreeOhEight\Seo\Contracts\Seoable;
 use ThreeOhEight\Seo\Http\ServerCardController;
-use ThreeOhEight\Seo\Middleware\SeoMiddleware;
-use ThreeOhEight\Seo\Routing\RouteSeo;
+use ThreeOhEight\Seo\Schema\Answer;
+use ThreeOhEight\Seo\Schema\QaPage;
+use ThreeOhEight\Seo\Schema\Question;
+use ThreeOhEight\Seo\Schema\SoftwareApplication;
+use ThreeOhEight\Seo\Schema\WebApplication;
+use ThreeOhEight\Seo\Tags\OgUrl;
 
+/**
+ * Thin add-on on top of laravel/head. Head resolves every page as
+ * defaults, then route withHead() metadata, then runtime Head:: calls;
+ * this provider only feeds config/seo.php into the defaults layer and adds
+ * a few Head macros.
+ */
 class SeoServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
         $this->mergeConfigFrom(__DIR__.'/../config/seo.php', 'seo');
 
-        $this->app->scoped(Seo::class, function ($app) {
-            $defaults = SeoDefaults::fromConfig($app['config']->get('seo', []));
-
-            return new Seo(new SeoData, $defaults);
+        // HeadManager is a singleton whose per-request state lives in a scoped
+        // binding, so registering the config defaults once is Octane safe.
+        $this->callAfterResolving(HeadManager::class, function (HeadManager $head): void {
+            $head->defaults(fn (HeadBuilder $defaults) => $this->applyConfigDefaults($defaults));
         });
+
+        // Same registry Head::extend() writes to, hooked on the singleton
+        // itself so the builder is added exactly once, even when the head
+        // manager is re-resolved.
+        $this->callAfterResolving(TagRegistry::class, fn (TagRegistry $tags) => $tags->extend(OgUrl::class));
     }
 
     public function boot(): void
@@ -28,50 +46,102 @@ class SeoServiceProvider extends ServiceProvider
             __DIR__.'/../config/seo.php' => config_path('seo.php'),
         ], 'seo-config');
 
-        $this->loadViewsFrom(__DIR__.'/../resources/views', 'seo');
+        $this->registerHeadMacros();
 
-        Blade::directive('seo', function () {
-            return "<?php echo app(\ThreeOhEight\Seo\Seo::class)->render(); ?>";
-        });
-
-        $this->app['router']->aliasMiddleware('seo', SeoMiddleware::class);
-
-        $this->registerRouteMacro();
+        $this->registerSchemaTypes();
 
         $this->registerServerCardRoutes();
     }
 
     /**
-     * Route-level SEO metadata: Route::get(...)->seo(title: 'Pricing'). Values
-     * are normalized to plain scalars in the route action so they survive
-     * route:cache. Group syntax: Route::group(['seo' => [...]], ...) with
-     * plain scalars only.
+     * Typed builders for rich results head does not ship, available as
+     * Schema::softwareApplication(), webApplication(), qaPage(), question()
+     * and answer().
      */
-    private function registerRouteMacro(): void
+    private function registerSchemaTypes(): void
     {
-        Route::macro('seo', function (
-            ?string $title = null,
-            ?string $description = null,
-            string|RobotsRule|array|null $robots = null,
-            ?string $canonical = null,
-            ?bool $noindex = null,
-            ?string $ogType = null,
-        ): Route {
-            /** @var Route $this */
-            $values = array_filter([
-                'title' => $title,
-                'description' => $description,
-                'robots' => $robots !== null ? Seo::robotsToString($robots) : null,
-                'canonical' => $canonical,
-                'noindex' => $noindex,
-                'og_type' => $ogType,
-            ], static fn ($value) => $value !== null);
+        foreach ([
+            SoftwareApplication::class,
+            WebApplication::class,
+            QaPage::class,
+            Question::class,
+            Answer::class,
+        ] as $type) {
+            Schema::register($type);
+        }
+    }
 
-            // Group attributes are merged into the action before this macro
-            // runs, so a plain array_merge makes route values beat group values.
-            $this->action[RouteSeo::KEY] = array_merge($this->action[RouteSeo::KEY] ?? [], $values);
+    private function applyConfigDefaults(HeadBuilder $head): void
+    {
+        $config = (array) $this->app['config']->get('seo', []);
+
+        $siteName = self::stringOrNull($config['site_name'] ?? null);
+        $suffix = $siteName !== null ? ($config['separator'] ?? ' - ').$siteName : null;
+        $title = self::stringOrNull($config['title'] ?? null);
+
+        // Head renders a default title exactly and only decorates page titles
+        // with the suffix, so the configured fallback title is pre-composed.
+        $defaultTitle = $title !== null ? $title.$suffix : $siteName;
+
+        if ($defaultTitle !== null) {
+            $head->title($defaultTitle, suffix: $suffix);
+        }
+
+        if ($description = self::stringOrNull($config['description'] ?? null)) {
+            $head->description($description);
+        }
+
+        if ($robots = self::stringOrNull($config['robots'] ?? null)) {
+            $head->robots($robots);
+        }
+
+        if ($config['auto_canonical'] ?? true) {
+            $head->canonical();
+        }
+
+        $head->og(type: self::stringOrNull($config['og_type'] ?? null), siteName: $siteName);
+
+        $ogImage = self::stringOrNull($config['og_image'] ?? null);
+
+        if ($ogImage !== null) {
+            $head->ogImage($ogImage);
+        }
+
+        $head->twitter(
+            card: self::stringOrNull($config['twitter_card'] ?? null),
+            site: self::stringOrNull($config['twitter_site'] ?? null),
+        );
+
+        // twitter:image already falls back to the og:image, and an explicit
+        // default would shadow a page-level Head::ogImage(), so only set it
+        // when the config asks for a different image.
+        $twitterImage = self::stringOrNull($config['twitter_image'] ?? null);
+
+        if ($twitterImage !== null && $twitterImage !== $ogImage) {
+            $head->twitterImage($twitterImage);
+        }
+    }
+
+    private function registerHeadMacros(): void
+    {
+        HeadManager::macro('from', function (Seoable $model): HeadManager {
+            /** @var HeadManager $this */
+            $model->toSeo($this);
 
             return $this;
+        });
+
+        /*
+         * Canonical URL of the current request that keeps its query string,
+         * minus the seo.canonical_strip patterns and the given ones (fnmatch
+         * syntax, eg "utm_*"). Head's automatic canonical drops the whole
+         * query string; use this on pages where some parameters matter.
+         */
+        HeadManager::macro('canonicalWithout', function (array $params = []): HeadManager {
+            /** @var HeadManager $this */
+            $patterns = [...(array) config('seo.canonical_strip', []), ...$params];
+
+            return $this->canonical(CanonicalUrl::without(request()->fullUrl(), $patterns));
         });
     }
 
@@ -95,5 +165,10 @@ class SeoServiceProvider extends ServiceProvider
         ] as $path) {
             $router->get($path, ServerCardController::class);
         }
+    }
+
+    private static function stringOrNull(mixed $value): ?string
+    {
+        return is_string($value) && $value !== '' ? $value : null;
     }
 }

@@ -1,12 +1,15 @@
 {
     "name": "three_oh_eight/seo",
-    "description": "Lean, Laravel-native SEO tag management",
+    "description": "Thin SEO add-on for laravel/head: config defaults, Seoable models, Livewire hook, canonical stripping",
     "type": "library",
     "license": "MIT",
     "require": {
         "php": "^8.5",
-        "illuminate/support": "^12.0 || ^13.0",
-        "illuminate/view": "^12.0 || ^13.0"
+        "illuminate/http": "^13.17",
+        "illuminate/routing": "^13.17",
+        "illuminate/support": "^13.17",
+        "illuminate/view": "^13.17",
+        "laravel/head": "~0.2.2"
     },
     "autoload": {
         "psr-4": {
@@ -19,7 +22,8 @@
         }
     },
     "require-dev": {
-        "orchestra/testbench": "^10.0",
+        "livewire/livewire": "^4.0",
+        "orchestra/testbench": "^11.0",
         "pestphp/pest": "^4.0",
         "pestphp/pest-plugin-laravel": "^4.0"
     },
@@ -27,10 +31,7 @@
         "laravel": {
             "providers": [
                 "ThreeOhEight\\Seo\\SeoServiceProvider"
-            ],
-            "aliases": {
-                "Seo": "ThreeOhEight\\Seo\\Facades\\Seo"
-            }
+            ]
         }
     },
     "minimum-stability": "stable",

@@ -1,100 +1,77 @@
 <?php
 
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Blade;
+use Laravel\Head\HeadManager;
+use Livewire\Component;
+use Livewire\Livewire;
 use ThreeOhEight\Seo\Concerns\HasSeo;
 use ThreeOhEight\Seo\Concerns\WithSeo;
 use ThreeOhEight\Seo\Contracts\Seoable;
-use ThreeOhEight\Seo\Seo;
 
-it('calls custom seo method when defined', function () {
-    $component = new class
+class SeoTestPost extends Model implements Seoable
+{
+    use HasSeo;
+
+    protected $guarded = [];
+}
+
+class SeoTestShowPost extends Component
+{
+    use WithSeo;
+
+    public SeoTestPost $post;
+
+    public string $query = 'ignored';
+
+    public function mount(): void
     {
-        use WithSeo;
+        $this->post = new SeoTestPost(['title' => 'Livewire post', 'excerpt' => 'Livewire excerpt']);
+    }
 
-        public function seo(Seo $seo): void
-        {
-            $seo->title('From Method');
-        }
-    };
+    public function render(): string
+    {
+        return '<div>{{ $post->title }}</div>';
+    }
+}
 
-    $component->renderingWithSeo();
+class SeoTestCustomPage extends Component
+{
+    use WithSeo;
 
-    $html = app(Seo::class)->renderMeta()->toHtml();
+    public SeoTestPost $post;
 
-    expect($html)->toContain('From Method');
+    public function mount(): void
+    {
+        $this->post = new SeoTestPost(['title' => 'Model title']);
+    }
+
+    public function seo(HeadManager $head): void
+    {
+        $head->title('From seo method')->hiddenFromRobots();
+    }
+
+    public function render(): string
+    {
+        return '<div>custom</div>';
+    }
+}
+
+it('applies public Seoable properties when the component renders', function () {
+    Livewire::test(SeoTestShowPost::class)->assertSee('Livewire post');
+
+    $html = Blade::render('@head');
+
+    expect($html)->toContain('<title>Livewire post - TestSite</title>')
+        ->and($html)->toContain('<meta name="description" content="Livewire excerpt">');
 });
 
-it('auto-detects public seoable properties', function () {
-    $model = new class implements Seoable
-    {
-        use HasSeo;
+it('prefers the component seo method over property detection', function () {
+    Livewire::test(SeoTestCustomPage::class)->assertSee('custom');
 
-        public ?string $meta_title = null;
-        public ?string $title = 'Model Title';
-        public ?string $meta_description = null;
-        public ?string $description = null;
-        public ?string $excerpt = null;
-    };
+    $html = Blade::render('@head');
 
-    $component = new class
-    {
-        use WithSeo;
-
-        public $post;
-    };
-    $component->post = $model;
-
-    $component->renderingWithSeo();
-
-    $html = app(Seo::class)->renderMeta()->toHtml();
-
-    expect($html)->toContain('Model Title');
-});
-
-it('skips non-seoable properties', function () {
-    $component = new class
-    {
-        use WithSeo;
-
-        public string $query = 'test';
-        public int $page = 1;
-    };
-
-    // Should not throw
-    $component->renderingWithSeo();
-
-    expect(true)->toBeTrue();
-});
-
-it('prefers seo method over auto-detection', function () {
-    $model = new class implements Seoable
-    {
-        use HasSeo;
-
-        public ?string $meta_title = null;
-        public ?string $title = 'Model Title';
-        public ?string $meta_description = null;
-        public ?string $description = null;
-        public ?string $excerpt = null;
-    };
-
-    $component = new class
-    {
-        use WithSeo;
-
-        public $post;
-
-        public function seo(Seo $seo): void
-        {
-            $seo->title('From Method Override');
-        }
-    };
-    $component->post = $model;
-
-    $component->renderingWithSeo();
-
-    $html = app(Seo::class)->renderMeta()->toHtml();
-
-    // Should use method, not model property
-    expect($html)->toContain('From Method Override')
-        ->and($html)->not->toContain('Model Title');
+    expect($html)->toContain('<title>From seo method - TestSite</title>')
+        ->and($html)->toContain('<meta name="robots" content="none">')
+        ->and($html)->not->toContain('Model title');
 });

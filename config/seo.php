@@ -1,5 +1,23 @@
 <?php
 
+/*
+|--------------------------------------------------------------------------
+| Head defaults
+|--------------------------------------------------------------------------
+|
+| Applied through Head::defaults(), so route withHead() metadata and runtime
+| Head:: calls override them. Page titles render as "Page{separator}{site_name}";
+| without a page title the default is "{title}{separator}{site_name}", or the
+| site name alone when title is null.
+|
+| og_url: render og:url from the canonical URL on pages with Open Graph
+| data (head only emits it when og(url: ...) is set explicitly).
+|
+| canonical_strip: fnmatch patterns (eg "utm_*") removed by
+| Head::canonicalWithout(), which keeps the rest of the query string. The
+| automatic canonical (auto_canonical) always drops the whole query string.
+|
+*/
 return [
     'site_name' => env('APP_NAME', 'Laravel'),
     'separator' => ' - ',
@@ -12,6 +30,7 @@ return [
     'twitter_card' => 'summary_large_image',
     'twitter_image' => '/android-chrome-512x512.png',
     'twitter_site' => null,
+    'og_url' => true,
 
     'canonical_strip' => [],
 

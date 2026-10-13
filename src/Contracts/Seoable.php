@@ -2,9 +2,13 @@
 
 namespace ThreeOhEight\Seo\Contracts;
 
-use ThreeOhEight\Seo\Seo;
+use Laravel\Head\HeadManager;
 
+/**
+ * A model (or any object) that knows how to describe itself in the page head.
+ * Applied with Head::from($model) or automatically by the WithSeo Livewire trait.
+ */
 interface Seoable
 {
-    public function toSeo(Seo $seo): void;
+    public function toSeo(HeadManager $head): void;
 }

@@ -1,233 +1,95 @@
 # three_oh_eight/seo
 
-Lean, Laravel-native SEO tag management. One facade, one config file, zero bloat.
+A thin add-on for [laravel/head](https://github.com/laravel/head). Head renders the page head (title, meta, canonical, robots, Open Graph, Twitter, icons, feeds, JSON-LD) and resolves it as defaults, then route `withHead()` metadata, then runtime `Head::` calls. This package only adds what head leaves out:
 
-Built for Laravel 12+ and PHP 8.5+. Octane-safe (scoped binding).
+- **Config defaults**: `config/seo.php` (site name, title separator, description, robots, og/twitter defaults) feeds head's defaults layer.
+- **Seoable models**: `Seoable` contract, `HasSeo` trait and `Head::from($model)`.
+- **Livewire**: the `WithSeo` trait applies head data before every render.
+- **`Head::canonicalWithout()`**: a canonical that keeps the query string minus tracking parameters.
+- **`og:url`**: rendered from the resolved canonical URL.
+- **Schema types**: `SoftwareApplication`, `WebApplication` and `QAPage` builders on head's `Schema` factory.
+- **MCP server card**: opt-in `/.well-known/mcp*` discovery routes.
+
+Requires PHP 8.5+, Laravel 13.17+ and laravel/head ^0.2. Octane safe: head keeps per-request state in a scoped binding, and this package registers everything once at boot.
 
 ## Installation
 
 ```bash
 composer require three_oh_eight/seo
-```
-
-The service provider and `Seo` facade are auto-discovered.
-
-Publish the config:
-
-```bash
 php artisan vendor:publish --tag=seo-config
 ```
 
-## Quick start
-
-Set SEO data anywhere (controller, middleware, Livewire component):
-
-```php
-use ThreeOhEight\Seo\Facades\Seo;
-
-Seo::title('Dashboard')
-    ->description('Your account overview')
-    ->image('https://example.com/og.jpg');
-```
-
-Render in your layout:
+Both service providers are auto-discovered. Render the head in your layout with head's directive:
 
 ```blade
 <head>
-    @seo
+    @head
 </head>
 ```
 
-That's it. The `@seo` directive renders `<title>`, meta description, canonical, robots, Open Graph, Twitter Card, and JSON-LD tags.
-
 ## Configuration
 
-All defaults live in `config/seo.php`:
-
 ```php
+// config/seo.php
 return [
-    'site_name'      => env('APP_NAME', 'My App'),
-    'separator'      => ' - ',
-    'title'          => null,          // default page title (null = site name only)
-    'description'    => null,          // default meta description
-    'auto_canonical' => true,          // auto-generate from url()->current()
-    'robots'         => null,          // null = don't render robots meta
-    'og_type'        => 'website',
-    'og_image'       => null,          // fallback OG image
-    'twitter_card'   => 'summary_large_image',
-    'twitter_image'  => null,          // fallback Twitter image
-    'twitter_site'   => null,          // @handle
+    'site_name' => env('APP_NAME', 'Laravel'),
+    'separator' => ' - ',
+    'title' => null,             // fallback page title; null renders the site name alone
+    'description' => 'A Laravel application.',
+    'auto_canonical' => true,    // canonical from the current URL, query string dropped
+    'robots' => null,
+    'og_type' => 'website',
+    'og_image' => '/android-chrome-512x512.png',
+    'twitter_card' => 'summary_large_image',
+    'twitter_image' => '/android-chrome-512x512.png', // only rendered when it differs from og_image
+    'twitter_site' => null,
+    'og_url' => true,            // og:url from the canonical URL
+
+    'canonical_strip' => [],     // fnmatch patterns for Head::canonicalWithout(), eg 'utm_*'
+
+    'server_card' => ['enabled' => false, 'card' => []],
 ];
 ```
 
-## API reference
+The values land in `Head::defaults()`, so route metadata and runtime calls override them. Page titles render as `{page}{separator}{site_name}`; `Head::title('X', exact: true)` skips the suffix. Without a page title the default is `{title}{separator}{site_name}`, or the site name alone when `title` is null.
 
-### Basic tags
+## Usage
 
-```php
-Seo::title('About Us');                     // <title>About Us - Site Name</title>
-Seo::description('Learn about us');         // <meta name="description" ...>
-Seo::canonical('https://example.com/about');// <link rel="canonical" ...>
-Seo::image('https://example.com/og.jpg');   // og:image + twitter:image
-Seo::robots('noindex, follow');             // <meta name="robots" ...>
-Seo::noindex();                             // shortcut: "noindex, nofollow"
-Seo::meta('author', 'Christoph');           // arbitrary <meta> tags
-```
-
-Titles are formatted as `{page title}{separator}{site name}`; pass `exact: true` to skip that:
+Everything page-specific is plain head API:
 
 ```php
-Seo::title('Standalone Title', exact: true);  // <title>Standalone Title</title>
-```
+use Laravel\Head\Facades\Head;
 
-`robots()` also accepts the `RobotsRule` enum, or a mixed array:
-
-```php
-use ThreeOhEight\Seo\RobotsRule;
-
-Seo::robots(RobotsRule::NoIndex);
-Seo::robots([RobotsRule::NoIndex, 'nofollow']);
-```
-
-### Route-level metadata
-
-Declare SEO metadata on routes; values survive `route:cache`:
-
-```php
 Route::get('/pricing', PricingController::class)
-    ->seo(title: 'Pricing', description: 'Plans and pricing', ogType: 'website');
+    ->withHead(title: 'Pricing', description: 'Plans and pricing');
 
-Route::get('/internal', InternalController::class)->seo(noindex: true);
-
-// Group syntax (plain scalars only):
-Route::group(['seo' => ['robots' => 'noindex']], function () {
-    Route::get('/app/dashboard', DashboardController::class);
-});
+Head::title('Dashboard')->description('Your overview');
+Head::robots('noindex, nofollow');
+Head::ogImage('https://example.com/og.jpg', alt: 'Dashboard');
 ```
 
-The cascade resolves field by field: runtime `Seo::...()` calls beat route metadata, route metadata beats config defaults. Supported fields: `title`, `description`, `robots`, `canonical`, `noindex` (bool shorthand), `ogType`. Note: fluent chaining before `group()` (`Route::seo(...)->group(...)`) is not supported; use the group-attribute syntax.
-
-### Conditionals
-
-`Seo` is Conditionable:
-
-```php
-Seo::when($post->isDraft(), fn ($seo) => $seo->noindex());
-```
-
-### Pagination
-
-```php
-Seo::prev('https://example.com?page=1');
-Seo::next('https://example.com?page=3');
-
-// Or from a paginator:
-Seo::paginate($posts);  // auto-sets prev/next from LengthAwarePaginator
-```
-
-### Open Graph & Twitter overrides
-
-Override platform-specific titles/descriptions when they should differ from the `<title>` tag:
-
-```php
-Seo::og()->title('Custom OG title');
-Seo::og()->description('Custom OG description');
-Seo::og()->type('article');                 // per-page og:type (default from config og_type)
-
-Seo::twitter()->title('Custom Twitter title');
-Seo::twitter()->description('Custom Twitter description');
-```
-
-Both proxies return the `Seo` instance, so you can chain:
-
-```php
-Seo::title('Page')
-    ->og()->title('OG override')
-    ->twitter()->title('Twitter override')
-    ->description('Shared description');
-```
-
-Set the Open Graph locale (and any alternates) for multilingual pages:
-
-```php
-Seo::og()->locale('en_US')->og()->alternateLocale('nl_NL');
-
-// alternateLocale also accepts an array, and dedupes:
-Seo::og()->alternateLocale(['nl_NL', 'de_DE']);
-```
-
-Renders:
-
-```html
-<meta property="og:locale" content="en_US">
-<meta property="og:locale:alternate" content="nl_NL">
-```
-
-`og:locale` is emitted only when set; one `og:locale:alternate` tag is emitted per alternate.
-
-### JSON-LD
-
-```php
-Seo::jsonLd('Organization')
-    ->title('Acme Corp')
-    ->description('We make things')
-    ->value('url', 'https://acme.com')
-    ->value('logo', 'https://acme.com/logo.png');
-```
-
-Multiple blocks render as a `@graph` array:
-
-```php
-Seo::jsonLd('WebSite')->title('Acme')->value('url', 'https://acme.com');
-Seo::jsonLd('Organization')->title('Acme Corp');
-// Outputs: {"@context":"https://schema.org","@graph":[...]}
-```
-
-Nested blocks:
-
-```php
-$address = JsonLdBlock::make('PostalAddress')->value('addressLocality', 'Rotterdam');
-Seo::jsonLd('Organization')->title('Acme')->value('address', $address);
-```
-
-### Breadcrumbs
-
-```php
-Seo::breadcrumbs([
-    'Home'     => '/',
-    'Products' => '/products',
-    'Widget'   => null,  // null = current page (no URL in output)
-]);
-```
-
-Renders a `BreadcrumbList` JSON-LD block with auto-incrementing positions.
+See the [laravel/head documentation](https://github.com/laravel/head) for the full API.
 
 ### Seoable models
 
-Implement the `Seoable` interface on your models:
-
 ```php
+use Laravel\Head\HeadManager;
 use ThreeOhEight\Seo\Contracts\Seoable;
-use ThreeOhEight\Seo\Seo;
 
 class Post extends Model implements Seoable
 {
-    public function toSeo(Seo $seo): void
+    public function toSeo(HeadManager $head): void
     {
-        $seo->title($this->title)
+        $head->title($this->title)
             ->description($this->excerpt)
-            ->image($this->cover_image);
+            ->ogImage($this->cover_url);
     }
 }
+
+Head::from($post); // returns the head manager, so you can keep chaining
 ```
 
-Then in a controller:
-
-```php
-Seo::from($post);
-```
-
-Or use the `HasSeo` trait for convention-based mapping (pulls from `meta_title`/`title` and `meta_description`/`description`/`excerpt`):
+Or use the `HasSeo` trait, which maps `meta_title` or `title` and `meta_description`, `description` or `excerpt`, skipping empty values:
 
 ```php
 use ThreeOhEight\Seo\Concerns\HasSeo;
@@ -239,109 +101,110 @@ class Post extends Model implements Seoable
 }
 ```
 
-### Livewire integration
-
-Add `WithSeo` to your Livewire component:
+### Livewire
 
 ```php
+use Laravel\Head\HeadManager;
 use ThreeOhEight\Seo\Concerns\WithSeo;
 
 class ShowPost extends Component
 {
     use WithSeo;
 
-    public Post $post; // auto-detected if Post implements Seoable
+    public Post $post; // every public Seoable property is applied
 
-    // Or define a custom seo() method:
-    public function seo(Seo $seo): void
+    // Optional; when present it replaces the property detection.
+    public function seo(HeadManager $head): void
     {
-        $seo->title($this->post->title)
-            ->description($this->post->excerpt);
+        $head->title($this->post->title);
     }
 }
 ```
 
-The trait hooks into `rendering()` and applies SEO data automatically. If a `seo()` method exists, it takes priority over auto-detection of Seoable properties.
+### Canonical without tracking parameters
 
-### Macros
-
-The `Seo` class uses Laravel's `Macroable` trait:
+Head's automatic canonical drops the whole query string. On pages where some parameters matter (filters, pagination), keep them and strip the rest:
 
 ```php
-Seo::macro('article', function (string $author, string $published) {
-    return $this->meta('article:author', $author)
-                ->meta('article:published_time', $published);
-});
-
-Seo::article('Christoph', '2026-01-01');
+Head::canonicalWithout();                 // strips the seo.canonical_strip patterns
+Head::canonicalWithout(['ref', 'sort']);  // plus these, fnmatch syntax
 ```
 
-## Rendering
+### og:url
 
-### Blade directive (recommended)
-
-```blade
-<head>
-    @seo
-</head>
-```
-
-### Blade components
-
-```blade
-<x-seo::tags />          {{-- all sections --}}
-<x-seo::meta />          {{-- title, description, canonical, robots, prev/next, custom meta --}}
-<x-seo::opengraph />     {{-- og:* tags --}}
-<x-seo::twitter />       {{-- twitter:* tags --}}
-<x-seo::json-ld />       {{-- JSON-LD script --}}
-```
-
-### Programmatic
+Head only renders `og:url` when you set it. This package renders it from the resolved canonical URL on every page that has Open Graph tags, so it follows `Head::canonical()`, route canonicals and `Head::canonicalWithout()`.
 
 ```php
-$html = Seo::render();          // SeoOutput (Htmlable + Stringable)
-$html = Seo::renderMeta();      // meta section only
-$html = Seo::renderOpenGraph();
-$html = Seo::renderTwitter();
-$html = Seo::renderJsonLd();
-
-$data = Seo::toArray();         // all resolved values as a structured array (handy in tests)
+Head::og(url: 'https://example.com/share');                  // override at runtime
+Route::get(...)->withHead(og: ['url' => 'https://...']);      // or per route
+Route::get(...)->withHead(extensions: ['ogUrl' => false]);    // turn it off for a route
 ```
 
-## Fallback cascade
+Set `seo.og_url` to `false` to turn it off everywhere. The tag renders after head's own tags, at the end of `@head`.
 
-Tags resolve in this order:
+## Schema types
 
-Route-level metadata (set via `Route::seo()` or the `seo` group attribute) sits between runtime calls and config defaults for `title`, `description`, `robots`, `canonical` and `og:type`.
+Head ships builders for Article, BlogPosting, Event, Product, Offer, Brand, BreadcrumbList, FAQPage, Organization, Person, WebPage and WebSite. This package registers five more on the same `Schema` factory:
 
-| Tag | Resolution |
-|-----|-----------|
-| `<title>` | `title()` > route `title` > config `title` > site name only |
-| `meta description` | `description()` > route `description` > config `description` > omitted |
-| `canonical` | `canonical()` > route `canonical` > `url()->current()` (if `auto_canonical`) > omitted |
-| `robots` | `robots()`/`noindex()` > route `robots` > config `robots` > omitted |
-| `og:type` | `og()->type()` > route `ogType` > config `og_type` |
-| `og:title` | `og()->title()` > formatted page title > site name |
-| `og:description` | `og()->description()` > `description()` > config `description` > omitted |
-| `og:image` | `image()` > config `og_image` > omitted |
-| `og:locale` | `og()->locale()` > omitted |
-| `og:locale:alternate` | `og()->alternateLocale()` (one tag per entry) > omitted |
-| `twitter:title` | `twitter()->title()` > formatted page title > site name |
-| `twitter:description` | `twitter()->description()` > `description()` > config `description` > omitted |
-| `twitter:image` | `image()` > config `twitter_image` > omitted |
+| Method | `@type` | Google rich result |
+|---|---|---|
+| `Schema::softwareApplication()` | SoftwareApplication | Software app |
+| `Schema::webApplication()` | WebApplication | Software app |
+| `Schema::qaPage()` | QAPage | Q&A |
+| `Schema::question()` | Question | (QAPage mainEntity) |
+| `Schema::answer()` | Answer | (accepted or suggested answer) |
 
-## Title format
+Every setter takes nullable input and leaves null or empty values out, so model attributes can go in directly. Head's validator throws on empty values outside production, which this avoids. Properties without a typed method go through head's magic setter (`->datePublished('2026-01-01')`) or `->set('key', $value)`.
 
-Titles are formatted as `{page title}{separator}{site name}`:
+### SoftwareApplication and WebApplication
 
-- `Seo::title('Dashboard')` renders `Dashboard - My App`
-- No page title renders `My App`
+Google needs `name`, an offer with a price, and an `aggregateRating` or `review`; `applicationCategory` and `operatingSystem` are recommended.
 
-OG and Twitter titles use the same formatted title unless overridden via their proxies.
+```php
+use Laravel\Head\Facades\Head;
+use Laravel\Head\Facades\Schema;
 
-## MCP server card (agent discovery)
+Head::schema(Schema::softwareApplication()
+    ->name('Payflo')
+    ->description($app->description)
+    ->url('https://payflo.eu')
+    ->applicationCategory('BusinessApplication')
+    ->operatingSystem('Windows, macOS')
+    ->softwareVersion('2.1')
+    ->price(0, 'EUR')                          // or ->offers(Schema::offer()->...)
+    ->aggregateRating(4.6, count: 120, best: 5)
+    ->review('Jane Doe', 5, body: 'Does the job.', publishedAt: now()));
+```
 
-If the application hosts an MCP server, the package can serve its discovery document. Enable it and provide the card verbatim (the shape follows SEP-2127, which is still a draft; the package never rewrites your payload):
+`webApplication()` has the same methods plus `browserRequirements()`.
+
+### QAPage
+
+For a page about one question and its answers (community or support Q&A, not a FAQ the site writes itself):
+
+```php
+Head::schema(Schema::qaPage()->question(
+    Schema::question()
+        ->name($question->title)
+        ->text($question->body)
+        ->author($question->user->name)        // string, Person or Organization
+        ->publishedAt($question->created_at)
+        ->upvotes($question->votes)
+        ->acceptedAnswer(Schema::answer()
+            ->text($accepted->body)
+            ->author($accepted->user->name)
+            ->url(route('questions.show', $question).'#answer-'.$accepted->id)
+            ->upvotes($accepted->votes)
+            ->publishedAt($accepted->created_at))
+        ->suggestedAnswer(...$others->map(fn ($answer) => Schema::answer()->text($answer->body)))
+));
+```
+
+`answerCount` defaults to the number of accepted plus suggested answers; call `->answerCount($n)` when the page shows more answers than the markup lists. Head renders every schema as its own `<script>` tag, which is what Google expects for QAPage.
+
+## MCP server card
+
+If the application hosts an MCP server, the package can serve its discovery document. Enable it and provide the card verbatim (the shape follows SEP-2127, still a draft; the package never rewrites your payload):
 
 ```php
 // config/seo.php
@@ -357,13 +220,15 @@ If the application hosts an MCP server, the package can serve its discovery docu
 ],
 ```
 
-The card is then served at `/.well-known/mcp.json`, `/.well-known/mcp` and `/.well-known/mcp/server-card.json` (identical payload; the canonical path has moved between spec revisions) with hourly caching, `nosniff` and permissive CORS. Disabled by default: no routes are registered without the flag.
+The card is served at `/.well-known/mcp.json`, `/.well-known/mcp` and `/.well-known/mcp/server-card.json` (identical payload; the canonical path has moved between spec revisions) with hourly caching, `nosniff` and permissive CORS. Disabled by default: no routes are registered without the flag.
+
+## Upgrading from 0.4
+
+0.5 is a rewrite on top of laravel/head. See the "Upgrading from 0.4" table in [CHANGELOG.md](CHANGELOG.md).
 
 ## Testing
 
 ```bash
-composer test
-# or
 ./vendor/bin/pest
 ```
 

@@ -1,5 +1,83 @@
 # Changelog
 
+## 0.5.0 - unreleased
+
+Rewritten as a thin add-on for [laravel/head](https://github.com/laravel/head). Head now renders the page head and owns the cascade (defaults, then route `withHead()` metadata, then runtime `Head::` calls); this package keeps only what head lacks.
+
+### Added
+
+- `og:url`, rendered from the resolved canonical URL on pages with Open Graph tags (0.4 behaviour; head itself only renders it when set explicitly). Override with `Head::og(url: ...)` or `withHead(og: ['url' => ...])`, turn off per route with `withHead(extensions: ['ogUrl' => false])` or everywhere with the new `seo.og_url` config key.
+- Schema builders on head's `Schema` factory: `Schema::softwareApplication()`, `webApplication()`, `qaPage()`, `question()` and `answer()`, covering Google's required and recommended properties. Setters skip null and empty values, so head's schema validator never sees them.
+- `Head::from($model)` and `Head::canonicalWithout($params)` macros.
+
+### Changed
+
+- Requires Laravel 13.17+ (`illuminate/*: ^13.17`) and `laravel/head: ^0.2`. Laravel 12 is no longer supported.
+- `config/seo.php` keeps its keys and now feeds `Head::defaults()`. `twitter_image` only renders when it differs from `og_image` (head falls back to the og image).
+- The automatic canonical always drops the whole query string; `canonical_strip` now applies to `Head::canonicalWithout()` only.
+- `Head::canonicalWithout()` now takes precedence over a route-level canonical set with `withHead(canonical: ...)`. In 0.4 the route canonical won.
+- `Seoable::toSeo()` and the `WithSeo` component `seo()` method receive `Laravel\Head\HeadManager` instead of `ThreeOhEight\Seo\Seo`.
+- JSON-LD renders one `<script>` per schema (head's behaviour) instead of a combined `@graph`.
+
+### Removed
+
+- The `Seo` service and facade, `SeoData`, `SeoDefaults`, `SeoOutput`, the `og()`/`twitter()` proxies, `RobotsRule`, `JsonLdBlock`, `JsonLdCollection`, `JsonLdHelper`, the `@seo` directive, the `<x-seo::*>` components, the `seo` middleware and the route `->seo()` macro and `seo` group attribute. Head covers all of them; see the table below.
+- `faqPage()`: Google stopped showing FAQ rich results on 2026-05-07 and removed the documentation on 2026-06-15. The markup is still valid schema.org but no longer earns a rich result. If you want it anyway, use head's `Schema::faq()`.
+
+### Upgrading from 0.4
+
+1. `composer require three_oh_eight/seo:^0.5` (pulls in `laravel/head`).
+2. Replace `@seo` or `<x-seo::tags />` in your layout with `@head`.
+3. Work through the table. Imports: `ThreeOhEight\Seo\Facades\Seo` becomes `Laravel\Head\Facades\Head`, schema builders come from `Laravel\Head\Facades\Schema`.
+4. The automatic canonical now drops the entire query string (0.4 kept everything except the `canonical_strip` patterns). Paginated or filtered pages whose parameters change the content must call `Head::canonicalWithout()` (keeps the query, minus `canonical_strip` and the given patterns) or use head's pagination helper `Head::paginate($paginator)`, otherwise every page variant canonicalises to the bare URL.
+
+| 0.4 | 0.5 (laravel/head) |
+|---|---|
+| `@seo`, `<x-seo::tags />` | `@head` |
+| `<x-seo::meta />`, `<x-seo::opengraph />`, `<x-seo::twitter />`, `<x-seo::json-ld />` | `@head` (no per-section rendering) |
+| `Seo::render()`, `renderMeta()`, `renderOpenGraph()`, `renderTwitter()`, `renderJsonLd()` | `Head::render()` |
+| `Seo::toArray()` | `Head::toArray()` (different shape) |
+| `Seo::title('X')` | `Head::title('X')` |
+| `Seo::title('X', exact: true)` | `Head::title('X', exact: true)` |
+| `Seo::description('X')` | `Head::description('X')` |
+| `Seo::canonical($url)` | `Head::canonical($url)` |
+| `Seo::canonicalWithout($params)` | `Head::canonicalWithout($params)` (keeps the other query parameters) |
+| `Seo::robots(...)` | `Head::robots(...)` |
+| `Seo::noindex()` | `Head::robots('noindex, nofollow')` or `Head::hiddenFromRobots()` (renders `none`) |
+| `ThreeOhEight\Seo\RobotsRule` | `Laravel\Head\Enums\RobotsRule` (same cases, plus `NoTranslate`, `IndexIfEmbedded`) |
+| `Seo::image($url, $width, $height, $type, $alt)` | `Head::ogImage($url, alt: ..., width: ..., height: ..., type: ...)`; `twitter:image` falls back to it |
+| `Seo::meta($name, $content)` | `Head::meta($name, $content)` |
+| `Seo::prev($url)`, `Seo::next($url)` | `Head::link('prev', $url)`, `Head::link('next', $url)` |
+| `Seo::paginate($paginator)` | `Head::paginate($paginator)` |
+| `Seo::alternate($hreflang, $url)`, `Seo::alternates([...])` | `Head::alternates([$hreflang => $url])` |
+| `Seo::preconnect($url, crossorigin: true)` | `Head::preconnect($url, crossorigin: true)` |
+| `Seo::dnsPrefetch($url)` | `Head::dnsPrefetch($url)` |
+| `Seo::og()->type('article')` | `Head::og(type: 'article')` |
+| `Seo::og()->title(...)`, `->description(...)` | `Head::og(title: ..., description: ...)` |
+| `Seo::og()->locale('en_US')` | `Head::og(locale: 'en_US')` |
+| `Seo::og()->alternateLocale('nl_NL')` | `Head::meta('og:locale:alternate', 'nl_NL')` (one value per key) |
+| `Seo::twitter()->title(...)`, `->description(...)` | `Head::twitter(title: ..., description: ...)` |
+| `Seo::from($model)` | `Head::from($model)` |
+| `Seoable::toSeo(Seo $seo)` | `Seoable::toSeo(HeadManager $head)` |
+| `WithSeo` component `seo(Seo $seo)` | `seo(HeadManager $head)` |
+| `Seo::macro(...)`, `Seo::when(...)`, `Seo::unless(...)` | `Head::macro(...)`, `Head::when(...)`, `Head::unless(...)` |
+| `Route::...->seo(title: ..., description: ..., robots: ..., canonical: ...)` | `->withHead(title: ..., description: ..., robots: ..., canonical: ...)` |
+| `->seo(noindex: true)` | `->withHead(robots: 'noindex, nofollow')` |
+| `->seo(ogType: 'article')` | `->withHead(og: ['type' => 'article'])` |
+| `Route::group(['seo' => [...]], ...)` | `Route::withHead(...)->group(...)` |
+| `->middleware('seo:noindex,nofollow')` | `->withHead(robots: 'noindex, nofollow')` |
+| `Seo::jsonLd('Type')->title('X')->description('Y')->value('k', $v)` | `Head::schema(Schema::make('Type')->name('X')->description('Y')->set('k', $v))` |
+| `Seo::jsonLdSeparate('Type')` | `Head::schema(...)` (every schema is its own script tag) |
+| `JsonLdBlock::make('Type')` (nested value) | `Schema::make('Type')` |
+| `Seo::breadcrumbs(['Home' => '/', 'Page' => null])` | `Head::schema(Schema::breadcrumbs()->items(['Home' => '/', 'Page' => url()->current()]))` (every item needs a URL) |
+| `Seo::jsonLd()->softwareApplication($name, $version, $url, $os, $category)` | `Head::schema(Schema::softwareApplication()->name($name)->softwareVersion($version)->url($url)->operatingSystem($os)->applicationCategory($category))` (0.4 emitted `version`; the schema.org property is `softwareVersion`) |
+| `Seo::jsonLd()->webApplication($name, $url, $category, $requirements)` | `Head::schema(Schema::webApplication()->name($name)->url($url)->applicationCategory($category)->browserRequirements($requirements))` |
+| `Seo::jsonLd()->qaPage($q, $a, $detail, $answerUrl, $date, $author)` | `Head::schema(Schema::qaPage()->question(Schema::question()->name($q)->text($detail)->publishedAt($date)->author($author)->acceptedAnswer(Schema::answer()->text($a)->url($answerUrl)->publishedAt($date)->author($author))))` (`dateCreated` becomes `datePublished`; `answerCount` is derived) |
+| `Seo::jsonLd()->faqPage([...])` | Dropped (see Removed); head's `Schema::faq()->questions([$q => $a])` if you still want it |
+| `Seo::jsonLd()->article($headline, $description, $published, $modified, $image, $author, ...)` | `Head::schema(Schema::article()->headline(...)->description(...)->publishedAt(...)->modifiedAt(...)->image(...)->author(Schema::person()->name(...)))`; `publisher`, `articleSection`, `keywords`, `inLanguage`, `mainEntityOfPage` via the magic setter, eg `->publisher(Schema::organization()->name('Acme'))` |
+| `Seo::jsonLd()->organization($name, $url, $logo, $description)` | `Head::schema(Schema::organization()->name($name)->url($url)->logo($logo)->description($description))` |
+| `Seo::jsonLd()->webSite($name, $url, $description, $inLanguage, ...)` | `Head::schema(Schema::webSite()->name($name)->url($url)->description($description)->inLanguage($inLanguage))` |
+
 ## 0.4.0 - 2026-08-27
 
 ### Added
@@ -56,6 +134,8 @@ Initial release.
 
 ## Migrating from artesaos/seotools
 
+This guide was written for 0.1 to 0.4 and uses the 0.4 `Seo` API. On 0.5, follow it and then apply the "Upgrading from 0.4" table above.
+
 This package replaces `artesaos/seotools` with a simpler, unified API. Below is everything you need to migrate.
 
 ### 1. Swap packages
@@ -86,11 +166,11 @@ SEOtools splits config across four sections (`meta`, `opengraph`, `twitter`, `js
 | `twitter.defaults.site` | `twitter_site` |
 
 **Dropped:**
-- `meta.defaults.keywords` — keywords meta tag is obsolete and not supported
-- `meta.defaults.titleBefore` — title is always `{page}{separator}{site}`, use `og()->title()` for overrides
-- `meta.webmaster_tags` — use `Seo::meta('google-site-verification', '...')` directly
-- Per-provider title/description defaults — one title and description applies everywhere, with per-platform overrides via `og()->title()` / `twitter()->title()`
-- `json-ld.defaults` — use `Seo::jsonLd()` in middleware or a service provider for site-wide JSON-LD
+- `meta.defaults.keywords`: keywords meta tag is obsolete and not supported
+- `meta.defaults.titleBefore`: title is always `{page}{separator}{site}`, use `og()->title()` for overrides
+- `meta.webmaster_tags`: use `Seo::meta('google-site-verification', '...')` directly
+- Per-provider title/description defaults: one title and description applies everywhere, with per-platform overrides via `og()->title()` / `twitter()->title()`
+- `json-ld.defaults`: use `Seo::jsonLd()` in middleware or a service provider for site-wide JSON-LD
 
 ### 3. Facade & import changes
 
@@ -200,7 +280,7 @@ Seo::jsonLd('Organization')
     ->description('A company')
     ->value('url', 'https://acme.com');
 
-// After (multiple — just call jsonLd() again)
+// After (multiple: just call jsonLd() again)
 Seo::jsonLd('WebPage')->title('Page');
 Seo::jsonLd('Organization')->title('Acme');
 ```
@@ -315,7 +395,7 @@ class PostController extends Controller
     }
 }
 
-// After — no trait needed
+// After: no trait needed
 class PostController extends Controller
 {
     public function show(Post $post)
