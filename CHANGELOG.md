@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.1 - 2026-10-13
+
+### Fixed
+
+- `HasSeo` now picks the first filled value among `meta_title`, `title` and `meta_description`, `description`, `excerpt`. An empty or whitespace-only `meta_title` or `meta_description` no longer stops the fallback chain, so the page gets the title, description or excerpt instead of the site default.
+
 ## 0.5.0 - unreleased
 
 Rewritten as a thin add-on for [laravel/head](https://github.com/laravel/head). Head now renders the page head and owns the cascade (defaults, then route `withHead()` metadata, then runtime `Head::` calls); this package keeps only what head lacks.

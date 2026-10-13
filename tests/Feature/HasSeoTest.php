@@ -53,6 +53,40 @@ it('keeps the defaults when the model has no seo attributes', function () {
         ->assertSee('<meta name="description" content="Default description">', false);
 });
 
+it('falls back to the excerpt when meta_description is an empty string', function () {
+    $post = seoablePost(['meta_description' => '', 'description' => '', 'excerpt' => 'Post excerpt']);
+
+    $this->headRoute('/post', fn () => Head::from($post));
+
+    $this->get('/post')
+        ->assertSee('<meta name="description" content="Post excerpt">', false);
+});
+
+it('falls back to the title when meta_title is whitespace only', function () {
+    $post = seoablePost(['meta_title' => "  \t ", 'title' => 'Post title']);
+
+    $this->headRoute('/post', fn () => Head::from($post));
+
+    $this->get('/post')
+        ->assertSee('<title>Post title - TestSite</title>', false);
+});
+
+it('keeps the config defaults when every seo attribute is empty', function () {
+    $post = seoablePost([
+        'meta_title' => '',
+        'title' => ' ',
+        'meta_description' => '',
+        'description' => '  ',
+        'excerpt' => '',
+    ]);
+
+    $this->headRoute('/post', fn () => Head::from($post));
+
+    $this->get('/post')
+        ->assertSee('<title>TestSite</title>', false)
+        ->assertSee('<meta name="description" content="Default description">', false);
+});
+
 it('overrides route metadata and returns the head manager for chaining', function () {
     $post = seoablePost(['title' => 'Post title']);
 
