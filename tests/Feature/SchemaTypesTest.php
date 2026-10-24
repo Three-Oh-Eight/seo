@@ -140,6 +140,28 @@ it('keeps an explicit answerCount', function () {
     expect($question->toArray()['answerCount'])->toBe(9);
 });
 
+it('escapes markup in JSON-LD so a value cannot close the script tag', function () {
+    $payload = '</script><script>alert(1)</script>';
+    $comment = '<!-- x --> & \'quoted\' "double"';
+
+    $this->headRoute('/app', fn () => Head::schema(Schema::softwareApplication()
+        ->name($payload)
+        ->description($comment)
+    ));
+
+    $html = $this->get('/app')->assertOk()->getContent();
+
+    preg_match_all('#<script type="application/ld\+json">(.*?)</script>#s', $html, $matches);
+
+    expect($matches[1])->toHaveCount(1)
+        ->and($matches[1][0])->not->toContain('</script')
+        ->and($matches[1][0])->not->toContain('<script')
+        ->and($matches[1][0])->not->toContain('<!--')
+        ->and($html)->not->toContain('<script>alert(1)')
+        ->and(json_decode($matches[1][0], true, flags: JSON_THROW_ON_ERROR))
+        ->toMatchArray(['name' => $payload, 'description' => $comment]);
+});
+
 it('omits null and empty values so head\'s validator accepts the schema', function () {
     $this->headRoute('/app', fn () => Head::schema(Schema::softwareApplication()
         ->name('Payflo')
